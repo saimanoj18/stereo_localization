@@ -1,0 +1,297 @@
+#ifndef CAMLOCALIZATION_H
+#define CAMLOCALIZATION_H
+
+#include <iostream>
+#include <sys/time.h>
+#include <sys/select.h>
+#include <numeric> 
+#include <Eigen/Dense>
+#include <Eigen/Geometry> 
+#include <Eigen/StdVector>
+#include <ros/ros.h>
+
+#include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <tf/transform_listener.h>
+
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/common/centroid.h>
+#include <pcl/io/ply_io.h>
+
+#include <pcl/octree/octree.h>
+#include <pcl/octree/octree_pointcloud.h>
+#include <pcl/octree/octree_iterator.h>
+#include <pcl/octree/octree_impl.h> 
+
+#include <pcl/correspondence.h>
+#include <pcl/common/transforms.h>
+#include <pcl_ros/transforms.h>
+
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h> 
+#include <opencv2/calib3d.hpp>
+
+#include "Thirdparty/g2o/g2o/core/block_solver.h"
+#include "Thirdparty/g2o/g2o/core/optimization_algorithm_levenberg.h"
+#include "Thirdparty/g2o/g2o/solvers/linear_solver_eigen.h"
+#include "Thirdparty/g2o/g2o/types/types_six_dof_expmap.h"
+#include "Thirdparty/g2o/g2o/core/robust_kernel_impl.h"
+#include "Thirdparty/g2o/g2o/solvers/linear_solver_dense.h"
+#include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
+
+#include "DepthEstimation/DepthMap.h"
+#include "DataStructures/Frame.h"
+#include "Tracking/SE3Tracker.h"
+#include "Tracking/Sim3Tracker.h"
+#include "Tracking/TrackingReference.h"
+#include "ImageDisplay.h"
+
+#include "MapPublisher.h"
+
+using namespace std;
+using namespace Eigen;
+
+class CamLocalization
+{
+public:
+    CamLocalization():
+    velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),
+    fakeTimeStamp(0),frameID(0),scale(0.42553191),
+    Velo_received(false),Left_received(false),Right_received(false),Map_init(true)
+    {
+        //Set Subscriber
+        sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
+        sub_leftimg = nh.subscribe("/kitti/left_image", 1, &CamLocalization::LeftImgCallback, this);
+        sub_rightimg = nh.subscribe("/kitti/right_image", 1, &CamLocalization::RightImgCallback, this);
+        sub_caminfo = nh.subscribe("/kitti/camera_gray_left/camera_info", 1, &CamLocalization::CamInfoCallback, this);
+
+
+        currentKeyFrame =  nullptr;
+        trackingReference = new lsd_slam::TrackingReference();
+
+        stereo_pose.translation()[0] = stereo_pose.translation()[0]+0.54;
+        cur_pose.translation()[0] = cur_pose.translation()[0]+0.54;
+        cur_pose.translation()[2] = cur_pose.translation()[2]+0.8;
+
+        EST_pose = Matrix4f::Identity();
+        ODO_pose = Matrix4f::Identity();
+        update_pose = Matrix4f::Identity();
+//        update_pose(0,3) = 0.54;
+        update_pose(2,3) = 0.8;
+        optimized_T = Matrix4f::Identity();
+        GT_pose = Matrix4f::Identity();
+
+        read_poses("poses.txt");
+        cout<<"Pose loading is completed"<<endl;
+
+//        //Load global map
+//        pcl::io::loadPLYFile<pcl::PointXYZ> ("merged_icp3.ply", *velo_raw); //* load the file
+//        cout<<"Global map loading is completed"<<endl;
+
+    }
+    ~CamLocalization(){
+        map->finalizeKeyFrame();
+        map->invalidate();
+        trackingReference->invalidate();
+        
+        delete map;
+        delete trackingReference;
+	    delete tracker;
+
+        //references.clear();
+        TrackedFrames.clear();
+        currentKeyFrame.reset(); 
+    
+    }
+    void CamLocInitialize(cv::Mat image);
+    void Refresh();
+    
+private:
+
+    //for ros subscription
+    ros::NodeHandle nh;
+    ros::Subscriber sub_veloptcloud;
+    ros::Subscriber sub_leftimg;
+    ros::Subscriber sub_rightimg;
+    ros::Subscriber sub_caminfo;
+    tf::TransformListener tlistener;
+
+    //for broadcast    
+    tf::TransformBroadcaster mTfBr;
+    
+    //input data
+    pcl::PointCloud<pcl::PointXYZ>::Ptr velo_cloud;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
+    cv::Mat left_image;
+    cv::Mat right_image;
+    std::shared_ptr<lsd_slam::Frame> currentKeyFrame;
+    std::deque< std::shared_ptr<lsd_slam::Frame> > TrackedFrames;
+    double fakeTimeStamp;
+    int frameID;
+
+    //input transform    
+    tf::StampedTransform ctv;
+    tf::StampedTransform wtb;
+    tf::StampedTransform tfT;
+    Matrix4f cTv;
+
+    //input camera info
+    Matrix<double,3,4> P_rect;
+    Matrix3d R_rect;
+    Sophus::Matrix3f K;
+    int width;
+    int height;
+    int ancient_width;
+    double scale;
+
+    //result data
+    Matrix4f ODO_pose;
+    ros::Time ODO_time;
+    Matrix4f EST_pose;
+    Matrix4f GT_pose;
+    vector<Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f>> GT_poses;
+ 
+
+    //Callbacks
+    void VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
+    void LeftImgCallback(const sensor_msgs::Image::ConstPtr& msg);
+    void RightImgCallback(const sensor_msgs::Image::ConstPtr& msg);
+    void CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);
+    bool Velo_received; 
+    bool Left_received; 
+    bool Right_received;
+    void read_poses(std::string fname); 
+    void write_poses(std::string fname, Matrix4f saved_pose); 
+
+
+    Matrix4f Optimization(const float* idepth); 
+    Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float th); 
+    
+
+    int64_t
+    timestamp_now (void)
+    {
+        struct timeval tv;
+        gettimeofday (&tv, NULL);
+        return (int64_t) tv.tv_sec * 1000000 + tv.tv_usec;
+    }
+    Vector2d ProjectTo2D(Vector3d v)
+    {
+      Vector2d res;
+      res[0] = v[0]*K(0,0)/v[2] + K(0,2);
+      res[1] = v[1]*K(1,1)/v[2] + K(1,2);
+      return res;
+    }
+
+    Vector3d ReprojectTo3D(double v1, double v2, double v3)
+    {
+      Vector3d res;
+      res[0] = v3/K(0,0)*(v1-K(0,2));
+      res[1] = v3/K(1,1)*(v2-K(1,2)); 
+      res[2] = v3;
+      return res;
+    }
+
+    Matrix4f SE3toMat(const g2o::SE3Quat &SE3)
+    {
+    Eigen::Matrix3f eigR = SE3.rotation().toRotationMatrix().cast <float> ();
+    Eigen::Vector3f eigt = SE3.translation().cast <float> ();
+    Matrix4f T = Matrix4f::Identity();
+    T.block<3,3>(0,0) = eigR;
+    T(0,3) = eigt[0];
+    T(1,3) = eigt[1];
+    T(2,3) = eigt[2];
+    return T;
+    }
+    
+    Matrix4f SE3toMat_Sophus(SE3 &se3)
+    {
+    Eigen::Matrix3f eigR = se3.rotationMatrix().cast <float> ();
+    Eigen::Vector3f eigt = se3.translation().cast <float> ();
+    Matrix4f T = Matrix4f::Identity();
+    T.block<3,3>(0,0) = eigR;
+    T(0,3) = eigt[0];
+    T(1,3) = eigt[1];
+    T(2,3) = eigt[2];
+    return T;
+    }
+
+    Matrix4f Sim3toMat(const g2o::Sim3 &Sim3)
+    {
+    Eigen::Matrix3f eigR = Sim3.rotation().toRotationMatrix().cast <float> ();
+    Eigen::Vector3f eigt = Sim3.translation().cast <float> ();
+    float s = (float) Sim3.scale();
+    Matrix4f T = Matrix4f::Identity();
+    T.block<3,3>(0,0) = s*eigR;
+    T(0,3) = eigt[0];
+    T(1,3) = eigt[1];
+    T(2,3) = eigt[2];
+    return T;
+    }
+    
+    Matrix4f Sim3toMat_Sophus(Sim3 &Sim3)
+    {
+    Eigen::Matrix3f eigR = Sim3.rotationMatrix().cast <float> ();
+    Eigen::Vector3f eigt = Sim3.translation().cast <float> ();
+    float s = (float) Sim3.scale();
+    Matrix4f T = Matrix4f::Identity();
+    T.block<3,3>(0,0) = s*eigR;
+    T(0,3) = eigt[0];
+    T(1,3) = eigt[1];
+    T(2,3) = eigt[2];
+    return T;
+    }
+
+    Sim3 MattoSim3(Matrix4f mat)
+    {
+        Matrix4d matd = mat.cast<double>();
+        Sim3 sim3_mat(matd);
+//        sim3_mat.translation()[0] = mat(0,3);
+//        sim3_mat.translation()[1] = mat(1,3);
+//        sim3_mat.translation()[2] = mat(2,3);
+        return sim3_mat;
+
+    }
+
+    //Tracking
+    lsd_slam::SE3Tracker* tracker;
+    lsd_slam::TrackingReference* trackingReference;
+    Matrix4f trackFrame(Sim3 initPose, cv::Mat image, unsigned int id, double timestamp, bool track_mode);
+    Sim3 cur_pose;
+    Sim3 stereo_pose;
+    Matrix4f update_pose;
+    Matrix4f optimized_T;
+
+    //depthmap
+    lsd_slam::DepthMap* map;
+    bool Map_init;
+    
+    //Degug images
+    cv::Vec3b Compute_error_color(float depth_error, float range)
+    {
+        // rainbow between 0 and 4
+	    float r = (0-depth_error) * 255 / range; if(r < 0) r = -r;
+	    float g = (range/2-depth_error) * 255 / range; if(g < 0) g = -g;
+	    float b = (range-depth_error) * 255 / range; if(b < 0) b = -b;
+	    uchar rc = r < 0 ? 0 : (r > 255 ? 255 : r);
+	    uchar gc = g < 0 ? 0 : (g > 255 ? 255 : g);
+	    uchar bc = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+        
+        return cv::Vec3b(255-rc,255-gc,255-bc);
+    }
+
+
+    //MapPublisher
+    MapPublisher MapPub;
+    
+
+
+};
+
+
+#endif // CAMLOCALIZATION_H
