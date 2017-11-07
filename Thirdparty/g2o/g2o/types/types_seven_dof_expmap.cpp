@@ -246,6 +246,22 @@ namespace g2o {
 //      _information<<0.0f;
 
     }
+    else if(vj->ImageGx[idx]!=vj->ImageGx[idx] || vj->ImageGy[idx]!=vj->ImageGy[idx])
+    {
+//      _error<< 0.0f;
+      _jacobianOplusXi << 0,0,0;
+      _jacobianOplusXj<<0,0,0,0,0,0,0;
+//      _information<<0.0f;
+
+    }
+    else if(xyz_trans[2]==0)
+    {
+//      _error<< 0.0f;
+      _jacobianOplusXi << 0,0,0;
+      _jacobianOplusXj<<0,0,0,0,0,0,0;
+//      _information<<0.0f;
+
+    }
 //    else if (_error[0]>10.0f|| _error[0]<-10.0f)
 //    {
 //      _jacobianOplusXi << 0,0,0;
@@ -296,12 +312,19 @@ namespace g2o {
         dm<<0,0,1.0f,0;
         _jacobianOplusXi << 0,0,0;
         _jacobianOplusXj.block<1,6>(0,0) = (dm-D_u*K_p)*Tp_note;//-D_u*K_p*Tp_note;//
+        if(_jacobianOplusXj(0,0)!=_jacobianOplusXj(0,0)){
+        std::cout<<"jacobian nan:"<<_jacobianOplusXj(0,0)<<std::endl;
+        std::cout<<vj->_focal_length1<<std::endl;
+        std::cout<<D_u<<std::endl;
+        std::cout<<K_p<<std::endl;
+        }
+//        std::cout<<_jacobianOplusXj<<std::endl;
 //        _jacobianOplusXj(0,0) = 0;
 //        _jacobianOplusXj(0,1) = 0;
 //        _jacobianOplusXj(0,2) = 0;
 //        _jacobianOplusXj(0,3) = 0;
 //        _jacobianOplusXj(0,4) = 0;        
-//        _jacobianOplusXj(0,5) = -_jacobianOplusXj(0,5);
+        _jacobianOplusXj(0,5) = -_jacobianOplusXj(0,5);
 //        if(D_u*D_u.transpose()>0.1)_jacobianOplusXj(0,5) = 0;   
     }
 

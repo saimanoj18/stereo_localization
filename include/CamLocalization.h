@@ -43,12 +43,6 @@
 #include "Thirdparty/g2o/g2o/solvers/linear_solver_dense.h"
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
 
-#include "DepthEstimation/DepthMap.h"
-#include "DataStructures/Frame.h"
-#include "Tracking/SE3Tracker.h"
-#include "Tracking/Sim3Tracker.h"
-#include "Tracking/TrackingReference.h"
-#include "ImageDisplay.h"
 
 #include "MapPublisher.h"
 
@@ -61,7 +55,7 @@ public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),
     fakeTimeStamp(0),frameID(0),scale(0.42553191),
-    Velo_received(false),Left_received(false),Right_received(false),Map_init(true)
+    Velo_received(false),Left_received(false),Right_received(false)
     {
         //Set Subscriber
         sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
@@ -69,13 +63,6 @@ public:
         sub_rightimg = nh.subscribe("/kitti/right_image", 1, &CamLocalization::RightImgCallback, this);
         sub_caminfo = nh.subscribe("/kitti/camera_gray_left/camera_info", 1, &CamLocalization::CamInfoCallback, this);
 
-
-        currentKeyFrame =  nullptr;
-        trackingReference = new lsd_slam::TrackingReference();
-
-        stereo_pose.translation()[0] = stereo_pose.translation()[0]+0.54;
-        cur_pose.translation()[0] = cur_pose.translation()[0]+0.54;
-        cur_pose.translation()[2] = cur_pose.translation()[2]+0.8;
 
         EST_pose = Matrix4f::Identity();
         ODO_pose = Matrix4f::Identity();
@@ -88,23 +75,9 @@ public:
         read_poses("poses.txt");
         cout<<"Pose loading is completed"<<endl;
 
-//        //Load global map
-//        pcl::io::loadPLYFile<pcl::PointXYZ> ("merged_icp3.ply", *velo_raw); //* load the file
-//        cout<<"Global map loading is completed"<<endl;
-
     }
     ~CamLocalization(){
-        map->finalizeKeyFrame();
-        map->invalidate();
-        trackingReference->invalidate();
-        
-        delete map;
-        delete trackingReference;
-	    delete tracker;
-
         //references.clear();
-        TrackedFrames.clear();
-        currentKeyFrame.reset(); 
     
     }
     void CamLocInitialize(cv::Mat image);
@@ -128,8 +101,6 @@ private:
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
     cv::Mat left_image;
     cv::Mat right_image;
-    std::shared_ptr<lsd_slam::Frame> currentKeyFrame;
-    std::deque< std::shared_ptr<lsd_slam::Frame> > TrackedFrames;
     double fakeTimeStamp;
     int frameID;
 
@@ -142,7 +113,7 @@ private:
     //input camera info
     Matrix<double,3,4> P_rect;
     Matrix3d R_rect;
-    Sophus::Matrix3f K;
+    Matrix3f K;
     int width;
     int height;
     int ancient_width;
@@ -153,6 +124,8 @@ private:
     ros::Time ODO_time;
     Matrix4f EST_pose;
     Matrix4f GT_pose;
+    Matrix4f update_pose;
+    Matrix4f optimized_T;
     vector<Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f>> GT_poses;
  
 
@@ -169,7 +142,7 @@ private:
 
 
     Matrix4f Optimization(const float* idepth); 
-    Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float th); 
+    Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY); 
     
 
     int64_t
@@ -207,18 +180,6 @@ private:
     T(2,3) = eigt[2];
     return T;
     }
-    
-    Matrix4f SE3toMat_Sophus(SE3 &se3)
-    {
-    Eigen::Matrix3f eigR = se3.rotationMatrix().cast <float> ();
-    Eigen::Vector3f eigt = se3.translation().cast <float> ();
-    Matrix4f T = Matrix4f::Identity();
-    T.block<3,3>(0,0) = eigR;
-    T(0,3) = eigt[0];
-    T(1,3) = eigt[1];
-    T(2,3) = eigt[2];
-    return T;
-    }
 
     Matrix4f Sim3toMat(const g2o::Sim3 &Sim3)
     {
@@ -232,43 +193,6 @@ private:
     T(2,3) = eigt[2];
     return T;
     }
-    
-    Matrix4f Sim3toMat_Sophus(Sim3 &Sim3)
-    {
-    Eigen::Matrix3f eigR = Sim3.rotationMatrix().cast <float> ();
-    Eigen::Vector3f eigt = Sim3.translation().cast <float> ();
-    float s = (float) Sim3.scale();
-    Matrix4f T = Matrix4f::Identity();
-    T.block<3,3>(0,0) = s*eigR;
-    T(0,3) = eigt[0];
-    T(1,3) = eigt[1];
-    T(2,3) = eigt[2];
-    return T;
-    }
-
-    Sim3 MattoSim3(Matrix4f mat)
-    {
-        Matrix4d matd = mat.cast<double>();
-        Sim3 sim3_mat(matd);
-//        sim3_mat.translation()[0] = mat(0,3);
-//        sim3_mat.translation()[1] = mat(1,3);
-//        sim3_mat.translation()[2] = mat(2,3);
-        return sim3_mat;
-
-    }
-
-    //Tracking
-    lsd_slam::SE3Tracker* tracker;
-    lsd_slam::TrackingReference* trackingReference;
-    Matrix4f trackFrame(Sim3 initPose, cv::Mat image, unsigned int id, double timestamp, bool track_mode);
-    Sim3 cur_pose;
-    Sim3 stereo_pose;
-    Matrix4f update_pose;
-    Matrix4f optimized_T;
-
-    //depthmap
-    lsd_slam::DepthMap* map;
-    bool Map_init;
     
     //Degug images
     cv::Vec3b Compute_error_color(float depth_error, float range)

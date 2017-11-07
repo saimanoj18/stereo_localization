@@ -10,14 +10,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     K << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
     cout<<K<<endl;
     cout<<left_image.cols<<", "<<left_image.rows<<endl;
-    //set tracker
     width = left_image.cols;
     height = left_image.rows;        
-    map =  new lsd_slam::DepthMap(width,height,K);
-    tracker = new lsd_slam::SE3Tracker(width,height,K);
-    // Do not use more than 4 levels for odometry tracking
-    for (int level = 4; level < PYRAMID_LEVELS; ++level)
-        tracker->settings.maxItsPerLvl[level] = 0;    
 
 }
 
@@ -38,96 +32,25 @@ void CamLocalization::Refresh()
         int frame_half = (int) frameID/2;
         cout<<frame_half<<endl;
         GT_pose = GT_poses[frame_half];//ODO_pose;//
-//        if(frameID>1){
-//            update_pose = GT_poses[frame_half-1].inverse()*GT_poses[frame_half];
-//        }
         cout<<"GT_pose:"<<GT_pose<<endl;
         pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
         MapPub.PublishMap(velo_raw,1);//publish velo raw
         MapPub.PublishPose(GT_pose,1);//publish GT pose
 
+
+        //initialize 
+        if(frameID == 0)CamLocInitialize(right_image);
         
+        /////////////////////////disparity map generation/////////////////////////////        
+        cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
+        //disparity image estimate
+        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,5);
+        sbm->compute(left_image, right_image, disp);
+        frameID = frameID+2;
 
-        int64_t start_time;
-        start_time = timestamp_now ();
-
-        /////////////////////////stereo tracking/////////////////////////////        
-        std::deque< std::shared_ptr<lsd_slam::Frame> > references;
-        if(Map_init){
-
-            //initialize 
-            CamLocInitialize(right_image);
-
-            //left frame
-            currentKeyFrame.reset(new lsd_slam::Frame(frameID, right_image.cols, right_image.rows, K, fakeTimeStamp, right_image.data));
-            fakeTimeStamp+=0.03;
-            frameID++;
-
-            //right frame
-            trackFrame(stereo_pose.inverse(), right_image, frameID, fakeTimeStamp,false);
-            //map->initializeFromStereo(currentKeyFrame.get(),TrackedFrames.back().get());
-            map->initializeRandomly(currentKeyFrame.get());
-            references.push_back(TrackedFrames.back());
-            frameID++;
-
-            
-            // propagate & make new.
-            map->updateKeyframe(references);
-            references.clear();
-            map->finalizeKeyFrame();
-	        map->createKeyFrame(TrackedFrames.back().get());
-            currentKeyFrame = TrackedFrames.back();
-
-            Map_init = false;
-        }
-        else{
-            //right frame
-            Matrix4f track_pose = Matrix4f::Identity();
-            track_pose(0,3) = 0.54;
-            track_pose = update_pose*track_pose;//*optimized_T.inverse()*track_pose;
-            trackFrame(MattoSim3(track_pose), right_image, frameID, fakeTimeStamp,false);
-            references.push_back(TrackedFrames.back());
-            fakeTimeStamp+=0.03;
-            frameID++;
-
-            // propagate & make new.
-            map->updateKeyframe(references);
-            references.clear();
-            map->finalizeKeyFrame();
-            map->createKeyFrame(TrackedFrames.back().get());
-            currentKeyFrame =  TrackedFrames.back();
-
-            //left frame       
-            trackFrame(stereo_pose.inverse(), left_image, frameID, fakeTimeStamp,false);
-            references.push_back(TrackedFrames.back());
-            fakeTimeStamp+=0.03;
-            frameID++;
-
-            // propagate & make new.
-            map->updateKeyframe(references);
-            references.clear();
-            map->finalizeKeyFrame();
-            map->createKeyFrame(TrackedFrames.back().get());
-            currentKeyFrame = TrackedFrames.back(); 
-        }
-
-
-        int64_t end_time;
-        end_time = timestamp_now ();
-
-
-        cout<<"check2"<<endl;
-        //visualize depth map
-        map->debugPlotDepthMap();
-        cv::imshow("DebugWindow DEPTH", map->debugImageDepth);
-        cv::waitKey(3);
-
-
+        cout<<width<<", "<<height<<endl;
         /////////////////////////prepare optimization/////////////////////////////
-        const float* inverse_depth = currentKeyFrame->idepth(0);
-        const float* inverse_depth_var = currentKeyFrame->idepthVar(0);
-        float info_max = 0;
         float* depth_gradientX = new float[width*height]();
         float* depth_gradientY = new float[width*height]();
         float* depth = new float[width*height]();
@@ -135,28 +58,33 @@ void CamLocalization::Refresh()
         cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
         cv::Mat info_image = cv::Mat::zeros(cv::Size(width, height), CV_8UC3);
 
+        cout<<"K: "<<K(0,0)<<endl;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
             u = i%width;
-            v = i/width;            
-            depth_image.at<float>(v,u) = inverse_depth[i];
-
+            v = i/width;
+            
             //depth
-            depth[i] = 1.0f/depth_image.at<float>(v,u)*map->rfactor;
+            int16_t d = disp.at<int16_t>(v,u);
+            if(d==0 || d!=d || d<0.001) depth[i] = 1000;
+            else depth[i] = 16*K(0,0)*0.54/((float)d);//0.54*K(0,0)/disp2.at<float>(v,u);
+//            depth[i] = 10;
+            depth_info[i] = 1/depth[i];
+
+            if(depth[i]>1000)cout<<"error1: "<<depth[i]<<endl;
+            if(depth[i]!=depth[i])cout<<"error2: "<<depth[i]<<endl;
+ 
+            //depth image            
+            depth_image.at<float>(v,u) = depth[i];
+
+            //info image            
+            info_image.at<cv::Vec3b>(v,u) = Compute_error_color(depth_info[i],1000);
 
         }
-
-//        cv::Mat disp;
-//        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,5);
-//        sbm->compute(left_image, right_image, disp);
-//        cv::normalize(disp, depth_image, 0, 1, CV_MINMAX, CV_32FC1);
-    
-//        cv::GaussianBlur( depth_image, depth_image, cv::Size(5,5), 0, 0, cv::BORDER_DEFAULT );
         cv::Mat dgx_image, dgy_image; // = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_8UC3);
         cv::Scharr(depth_image, dgx_image, CV_32FC1, 1, 0);
         cv::Scharr(depth_image, dgy_image, CV_32FC1, 0, 1);
-
 
 
 
@@ -176,24 +104,18 @@ void CamLocalization::Refresh()
             v = i/width;
 
             //depth gradient
-            depth_gradientX[i] = -dgx_image.at<float>(v,u)/32.0f;
-            depth_gradientY[i] = -dgy_image.at<float>(v,u)/32.0f;
+            depth_gradientX[i] = dgx_image.at<float>(v,u)/32.0f;
+            depth_gradientY[i] = dgy_image.at<float>(v,u)/32.0f;
 
-//            //depth gradient
-//            if(depth_gradientX[i]>1||depth_gradientX[i]<-1) depth_gradientX[i] = 0;//-dgx_image.at<float>(v,u)/32.0f;
-//            if(depth_gradientY[i]>1||depth_gradientY[i]<-1) depth_gradientY[i] = 0;
+            if(depth_gradientX[i]!=depth_gradientX[i])depth_gradientX[i] = 0;
+            if(depth_gradientY[i]!=depth_gradientY[i])depth_gradientY[i] = 0;
 
-            //depth info
-            if (inverse_depth[i]<=0.0f || inverse_depth_var[i]<=0.0f ){//|| v<60
-                depth_info[i] = 0.0f;//0.00001f/1000000.0f;//*inverse_depth_var[i]);
-            }
-            else{
-                depth_info[i] = 1.0f/(inverse_depth_var[i]);//*inverse_depth_var[i]);
-            }
+            if(depth_gradientX[i]>1||depth_gradientX[i]<-1)depth_gradientX[i] = 0;
+            if(depth_gradientY[i]>1||depth_gradientY[i]<-1)depth_gradientY[i] = 0;
 
-            //info image            
-            info_image.at<cv::Vec3b>(v,u) = Compute_error_color(depth_info[i],1000);
 
+            
+            //for visualization
             //image plot
             if(depth_gradientX[i]>0)dgx_plot.at<cv::Vec3b>(v,u)=cv::Vec3b(255*depth_gradientX[i],0,0);
             else if(depth_gradientX[i]==0)dgx_plot.at<cv::Vec3b>(v,u)=cv::Vec3b(0,0,0);
@@ -210,39 +132,25 @@ void CamLocalization::Refresh()
                 image_cloud->points[i].z = depth[i];
             }    
               
-
         }
 
 
         cv::imshow("dgx_plot", dgx_plot);
         cv::waitKey(3);
         cv::moveWindow("dgx_plot", 50,20);
-
         cv::imshow("dgy_plot", dgy_plot);
         cv::waitKey(3);
         cv::moveWindow("dgy_plot", 600,20);  
-
         cv::imshow("info_image", info_image);
         cv::waitKey(3);
         cv::moveWindow("info_image", 1000,20);
-
         cv::imshow("depth_image", depth_image);
         cv::waitKey(3);
         cv::moveWindow("depth_image", 1000,70);
 
-
         
         //Initialize EST_pose, velo_cloud
         EST_pose = EST_pose*update_pose;
-//        if(frameID==40)EST_pose = GT_pose;
-//        if(frameID%10==0){
-//            Matrix4f xtest = EST_pose.inverse()*GT_pose;//
-//            Matrix4f xapply = Matrix4f::Identity();
-//            xapply(0,3) = xtest(0,3);
-//            xapply(1,3) = xtest(1,3);
-//            xapply(2,3) = xtest(2,3);
-//            EST_pose = EST_pose*xapply;
-//        }
         pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
         cout<<"EST_pose"<<EST_pose<<endl;
         MapPub.PublishPose(ODO_pose,2);
@@ -254,19 +162,9 @@ void CamLocalization::Refresh()
 
 
             optimized_T = Matrix4f::Identity();
-//            cout<<"prepare initial optimization"<<endl;
-//            //Initial ICP 
-//            optimized_T = Optimization(depth);
-//            pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
-//            EST_pose = EST_pose*optimized_T.inverse();
-//            cout<<"optimized_T"<<optimized_T<<endl;
             
             //optimization
-            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,info_max/100);
-//            optimized_T(0,3) = 0;
-//            optimized_T(1,3) = 0;
-//            optimized_T(2,3) = 0;
-//            if(frameID<10) optimized_T(2,3) = 0.3;
+            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY);
             pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
             EST_pose = EST_pose*optimized_T.inverse();
 
@@ -274,7 +172,6 @@ void CamLocalization::Refresh()
 
 
         cout<<"EST_pose"<<EST_pose<<endl;
-        cout<<"info_max: "<<info_max<<endl;
 //        cout<<"update_pose: "<<update_pose<<endl;
         MapPub.PublishPose(EST_pose,3);
         pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose);
@@ -297,7 +194,7 @@ void CamLocalization::Refresh()
         delete [] depth;
         delete [] depth_info;
 
-        cout<<"Elapsed time: %"<<end_time - start_time<<" usecs\n"<<endl;
+//        cout<<"Elapsed time: %"<<end_time - start_time<<" usecs\n"<<endl;
     }    
 
 
@@ -422,48 +319,6 @@ void CamLocalization::CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& m
     cout<<"K Matrix: "<<K<<endl;
 }
 
-Matrix4f CamLocalization::trackFrame(Sim3 initPose, cv::Mat image, unsigned int id, double timestamp, bool track_mode)
-{
-    // Create new frame
-	std::shared_ptr<lsd_slam::Frame> trackingNewFrame(new lsd_slam::Frame(id, image.cols, image.rows, K, timestamp, image.data));
-    Matrix4f newPose=Matrix4f::Identity();
-    
-    if (track_mode)
-    {
-        SE3 frameToReference_initialEstimate = lsd_slam::se3FromSim3(initPose);
-        if(trackingReference->keyframe != currentKeyFrame.get() || currentKeyFrame->depthHasBeenUpdatedFlag)
-	    {
-		    trackingReference->importFrame(currentKeyFrame.get());
-		    currentKeyFrame->depthHasBeenUpdatedFlag = false;
-        }
-
-        SE3 newRefToFrame_poseUpdate = tracker->trackFrame(
-			    trackingReference,
-			    trackingNewFrame.get(),
-			    frameToReference_initialEstimate);
-
-
-        //tracking results
-        cout<<tracker->diverged<<endl;
-        cout<<tracker->trackingWasGood<<endl;
-        cout<<"init_pose: "<<SE3toMat_Sophus(frameToReference_initialEstimate)<<endl;    
-        cout<<"cur_pose: "<<SE3toMat_Sophus(newRefToFrame_poseUpdate)<<endl;
-//        cur_pose = lsd_slam::sim3FromSE3(newRefToFrame_poseUpdate,1);
-        newPose = SE3toMat_Sophus(newRefToFrame_poseUpdate);
-    }
-    else
-    {
-        trackingNewFrame->pose->thisToParent_raw = initPose;
-        trackingNewFrame->initialTrackedResidual = 0.0f;
-        trackingNewFrame->pose->trackingParent = currentKeyFrame->pose;
-        //TrackedFrames.push_back(trackingNewFrame);
-    }
-    
-    TrackedFrames.push_back(trackingNewFrame);
-    return newPose;
-    
-
-}
 
 Matrix4f CamLocalization::Optimization(const float* idepth)
 {
@@ -528,7 +383,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth)
 }
 
 
-Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float th)
+Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY)
 {
     //g2o optimization 
     cout<<"g2o Optimization"<<endl;
