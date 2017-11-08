@@ -220,7 +220,7 @@ namespace g2o {
     Vector3d xyz_trans = T.map(xyz);
 
     Vector2d Ipos(vj->cam_map(xyz_trans));
-    int idx = (int)(Ipos[1]*vj->_width+Ipos[0]);
+    int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
 
     if (_measurement==0)//(Ipos[0]>=vj->_width || Ipos[0]<0 || Ipos[1]>=vj->_height || Ipos[1]<0 || abs(_error[0])>1.0f)
@@ -230,38 +230,30 @@ namespace g2o {
       _jacobianOplusXj<<0,0,0,0,0,0,0;
 //      _information<<0.0f;
     }
-    else if(vj->ImageD[idx]<=0)
-    {
-//      _error<< 0.0f;
-      _jacobianOplusXi << 0,0,0;
-      _jacobianOplusXj<<0,0,0,0,0,0,0;
-//      _information<<0.0f;
+//    else if(!std::isfinite(vj->ImageD[idx]))
+//    {
+////      _error<< 0.0f;
+//      _jacobianOplusXi << 0,0,0;
+//      _jacobianOplusXj<<0,0,0,0,0,0,0;
+////      _information<<0.0f;
 
-    }
-    else if(vj->ImageGx[idx]==0 && vj->ImageGy[idx]==0)
-    {
-//      _error<< 0.0f;
-      _jacobianOplusXi << 0,0,0;
-      _jacobianOplusXj<<0,0,0,0,0,0,0;
-//      _information<<0.0f;
+//    }
+//    else if(!std::isfinite(vj->ImageGx[idx]) || !std::isfinite(vj->ImageGy[idx]))
+//    {
+////      _error<< 0.0f;
+//      _jacobianOplusXi << 0,0,0;
+//      _jacobianOplusXj<<0,0,0,0,0,0,0;
+////      _information<<0.0f;
 
-    }
-    else if(vj->ImageGx[idx]!=vj->ImageGx[idx] || vj->ImageGy[idx]!=vj->ImageGy[idx])
-    {
-//      _error<< 0.0f;
-      _jacobianOplusXi << 0,0,0;
-      _jacobianOplusXj<<0,0,0,0,0,0,0;
-//      _information<<0.0f;
+//    }
+//    else if(xyz_trans[2]==0)
+//    {
+////      _error<< 0.0f;
+//      _jacobianOplusXi << 0,0,0;
+//      _jacobianOplusXj<<0,0,0,0,0,0,0;
+////      _information<<0.0f;
 
-    }
-    else if(xyz_trans[2]==0)
-    {
-//      _error<< 0.0f;
-      _jacobianOplusXi << 0,0,0;
-      _jacobianOplusXj<<0,0,0,0,0,0,0;
-//      _information<<0.0f;
-
-    }
+//    }
 //    else if (_error[0]>10.0f|| _error[0]<-10.0f)
 //    {
 //      _jacobianOplusXi << 0,0,0;
@@ -318,13 +310,14 @@ namespace g2o {
         std::cout<<D_u<<std::endl;
         std::cout<<K_p<<std::endl;
         }
+        
 //        std::cout<<_jacobianOplusXj<<std::endl;
 //        _jacobianOplusXj(0,0) = 0;
 //        _jacobianOplusXj(0,1) = 0;
 //        _jacobianOplusXj(0,2) = 0;
 //        _jacobianOplusXj(0,3) = 0;
 //        _jacobianOplusXj(0,4) = 0;        
-        _jacobianOplusXj(0,5) = -_jacobianOplusXj(0,5);
+//        _jacobianOplusXj(0,5) = -_jacobianOplusXj(0,5);
 //        if(D_u*D_u.transpose()>0.1)_jacobianOplusXj(0,5) = 0;   
     }
 

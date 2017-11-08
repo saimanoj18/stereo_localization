@@ -44,10 +44,15 @@ void CamLocalization::Refresh()
         
         /////////////////////////disparity map generation/////////////////////////////        
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
+        cv::Mat disp2;
         //disparity image estimate
-        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,5);
+        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,9);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
+        
+        cv::normalize(disp, disp2, 0, 1, CV_MINMAX, CV_32FC1);    
+        cv::imshow("disp2", disp2);
+        cv::waitKey(3);
 
         cout<<width<<", "<<height<<endl;
         /////////////////////////prepare optimization/////////////////////////////
@@ -58,7 +63,7 @@ void CamLocalization::Refresh()
         cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
         cv::Mat info_image = cv::Mat::zeros(cv::Size(width, height), CV_8UC3);
 
-        cout<<"K: "<<K(0,0)<<endl;
+//        cout<<"K: "<<K(0,0)<<endl;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
@@ -67,19 +72,11 @@ void CamLocalization::Refresh()
             
             //depth
             int16_t d = disp.at<int16_t>(v,u);
-            if(d==0 || d!=d || d<0.001) depth[i] = 1000;
-            else depth[i] = 16*K(0,0)*0.54/((float)d);//0.54*K(0,0)/disp2.at<float>(v,u);
-//            depth[i] = 10;
-            depth_info[i] = 1/depth[i];
+            if(d==0 || d!=d || d<100) d = 0;
+            depth[i] = 16*K(0,0)*0.54/((float)d);//0.54*K(0,0)/disp2.at<float>(v,u);
 
-            if(depth[i]>1000)cout<<"error1: "<<depth[i]<<endl;
-            if(depth[i]!=depth[i])cout<<"error2: "<<depth[i]<<endl;
- 
             //depth image            
             depth_image.at<float>(v,u) = depth[i];
-
-            //info image            
-            info_image.at<cv::Vec3b>(v,u) = Compute_error_color(depth_info[i],1000);
 
         }
         cv::Mat dgx_image, dgy_image; // = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_8UC3);
@@ -107,11 +104,30 @@ void CamLocalization::Refresh()
             depth_gradientX[i] = dgx_image.at<float>(v,u)/32.0f;
             depth_gradientY[i] = dgy_image.at<float>(v,u)/32.0f;
 
-            if(depth_gradientX[i]!=depth_gradientX[i])depth_gradientX[i] = 0;
-            if(depth_gradientY[i]!=depth_gradientY[i])depth_gradientY[i] = 0;
+//            if(depth_gradientX[i]<0.001 && depth_gradientX[i]>-0.001)depth_gradientX[i] = 0;
+//            if(depth_gradientY[i]<0.001 && depth_gradientY[i]>-0.001)depth_gradientY[i] = 0;
 
-            if(depth_gradientX[i]>1||depth_gradientX[i]<-1)depth_gradientX[i] = 0;
-            if(depth_gradientY[i]>1||depth_gradientY[i]<-1)depth_gradientY[i] = 0;
+//            if(depth_gradientX[i]!=depth_gradientX[i])depth_gradientX[i] = 0;
+//            if(depth_gradientY[i]!=depth_gradientY[i])depth_gradientY[i] = 0;
+
+//            if(depth_gradientX[i]>1 || depth_gradientX[i]<-1)depth_gradientX[i] = 0;
+//            if(depth_gradientY[i]>1|| depth_gradientY[i]<-1)depth_gradientY[i] = 0;
+
+//            float thres = 0.1;
+//            if(depth_gradientX[i]>thres)depth_gradientX[i] = thres;
+//            if(depth_gradientY[i]>thres)depth_gradientY[i] = thres;
+//            if(depth_gradientX[i]<-thres)depth_gradientX[i] = -thres;
+//            if(depth_gradientY[i]<-thres)depth_gradientY[i] = -thres;
+
+
+            //depth info
+            float info_denom = depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i];
+            if (!isfinite(info_denom)) depth_info[i] = 0;
+            else if (info_denom<0.001) depth_info[i] = 1000.0;
+            else depth_info[i] = 10.0/(info_denom);
+
+            //info image            
+            info_image.at<cv::Vec3b>(v,u) = Compute_error_color(depth_info[i],1000);
 
 
             
@@ -126,7 +142,7 @@ void CamLocalization::Refresh()
             else dgy_plot.at<cv::Vec3b>(v,u)=cv::Vec3b(0,0,-255*depth_gradientY[i]);
 
             //cloud plot
-            if(depth_info[i]>0){
+            if(depth_info[i]>0 && isfinite(depth[i])){
                 image_cloud->points[i].x = depth[i]/K(0,0)*(u-K(0,2));
                 image_cloud->points[i].y = depth[i]/K(1,1)*(v-K(1,2)); 
                 image_cloud->points[i].z = depth[i];
@@ -162,7 +178,11 @@ void CamLocalization::Refresh()
 
 
             optimized_T = Matrix4f::Identity();
-            
+//            //Initial ICP 
+//            optimized_T = Optimization(depth,depth_gradientX,depth_gradientY);            
+//            pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
+//            EST_pose = EST_pose*optimized_T.inverse();
+//            cout<<"optimized_T"<<optimized_T<<endl;
             //optimization
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY);
             pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
@@ -320,11 +340,13 @@ void CamLocalization::CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& m
 }
 
 
-Matrix4f CamLocalization::Optimization(const float* idepth)
+Matrix4f CamLocalization::Optimization(const float* idepth, const float* d_gradientX, const float* d_gradientY)
 {
     //ICP optimization 
     Matrix<double,3,1> Sum_x;
     Matrix<double,3,1> Sum_x2;
+    Sum_x<<0,0,0;
+    Sum_x2<<0,0,0;
     int numpts = velo_cloud->points.size();
     int index = 0;
     cout<<index<<endl;
@@ -337,46 +359,39 @@ Matrix4f CamLocalization::Optimization(const float* idepth)
         Vector2d Ipos = ProjectTo2D(pts);
         int i_idx = ((int)Ipos[1])*width+((int)Ipos[0]);
 
-        if ( pts[2]>1.0f && pts[2]<10.0f && pts[1]<0.0f)
-        { 
-            Matrix<double,3,1> pts2 = ReprojectTo3D(Ipos[0],Ipos[1],idepth[i_idx]);
-            double dif = pts[2]-pts2[2];
-            if (Ipos[0]<width && Ipos[0]>=0 && Ipos[1]<height && Ipos[1]>=0)// && dif<0.5f && dif>-0.5f)
+        if ( pts[2]>0.0f )
+        {
+            if(Ipos[0]<width && Ipos[0]>=0 && Ipos[1]<height && Ipos[1]>=0 && i_idx>-1 && i_idx<width*height)
             {
-//                cout<<dif<<endl;
-                Sum_x+=pts;
-                Sum_x2+=pts2;
-                index++;
-                
+                Matrix<double,3,1> pts2 = ReprojectTo3D(Ipos[0],Ipos[1],idepth[i_idx]);
+                double dif = pts[2]-pts2[2];
+                if (dif<1.0f && dif>-1.0f)
+                {
+                    if(d_gradientX[i_idx]<0.01 && d_gradientX[i_idx]>-0.01 && d_gradientY[i_idx]<0.01 && d_gradientY[i_idx]>-0.01)
+                    {
+                        if(isfinite(d_gradientX[i_idx]) && isfinite(d_gradientY[i_idx]) && isfinite(idepth[i_idx]))
+                        {
+                            Sum_x+=pts;
+                            Sum_x2+=pts2;
+                            index++;
+                        }
+                    }
+                }
             }
         }
 
     }
     cout<<index<<endl;
-//    //solve Ax=b
-//    Matrix<double,3,6> A;
-//    Matrix<double,3,1> b;
-//    Matrix3d A1, A2;
-//    A1 <<0,-Sum_x2[2],Sum_x2[1],Sum_x2[2],0,-Sum_x2[0],-Sum_x2[1],Sum_x2[0],0;
-//    A2 = ((double)index)*Matrix3d::Identity();
-//    A.block<3,3>(0,0) = A1;
-//    A.block<3,3>(0,3) = A2;
-//    b = Sum_x-Sum_x2;
-//    Matrix<double,6,1> sol;
-//    sol = (A.transpose()*A).inverse()*A.transpose()*b;
-
     //build result_mat
     Matrix4f result_mat = Matrix4f::Identity();
-//    result_mat << 1,0,0,sol[3],0,1,0,sol[4],0,0,1,sol[5],0,0,0,1;
-//    cout<<"result mat"<<sol<<endl;
-//    if(abs(sol[0])>10)return result_mat;
-//    else return Matrix4f::Identity();
-    if(index>0){
+    if(index>100){
     Matrix<double,3,1> sol;
     sol = Sum_x-Sum_x2;
-    result_mat(0,3) = 0;//sol[0]/((double)index);
-    result_mat(1,3) = 0;//sol[1]/((double)index);
-    result_mat(2,3) = -sol[2]/((double)index);
+    double dz = sol[2]/((double)index);
+    cout<<dz<<endl;
+        if(dz<0.2&&dz>-0.2){
+            result_mat(2,3) = -dz;
+        }
     }
     return result_mat;
     
@@ -447,7 +462,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
         
         
-        if ( pts[i][2]>0.0f ){// && pts[i][2]<10.0f){
+        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*0.54/100){
 //            if(Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0)
 //            {
                 
@@ -611,9 +626,9 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     res_y = result_mat(1,3)>0?result_mat(1,3):-result_mat(1,3);
     res_z = result_mat(2,3)>0?result_mat(2,3):-result_mat(2,3);
 //    result_mat(2,3) = -result_mat(2,3);
-    if (res_x>0.3) result_mat(0,3) = 0;//result_mat(0,3)>0?0.1:-0.1;
-    if (res_y>0.3) result_mat(1,3) = 0;//result_mat(1,3)>0?0.1:-0.1;
-    if (res_z>1.0) result_mat(2,3) = 0;//result_mat(2,3)>0?0.1:-0.1;// || g2oresult<4 
+    if (res_x>0.5) result_mat(0,3) = 0;//result_mat(0,3)>0?0.1:-0.1;
+    if (res_y>0.5) result_mat(1,3) = 0;//result_mat(1,3)>0?0.1:-0.1;
+    if (res_z>0.5) result_mat(2,3) = 0;//result_mat(2,3)>0?0.1:-0.1;// || g2oresult<4 
     else return result_mat;
 
 

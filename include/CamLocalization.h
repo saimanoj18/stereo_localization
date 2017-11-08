@@ -4,7 +4,8 @@
 #include <iostream>
 #include <sys/time.h>
 #include <sys/select.h>
-#include <numeric> 
+#include <numeric>
+#include <cmath> 
 #include <Eigen/Dense>
 #include <Eigen/Geometry> 
 #include <Eigen/StdVector>
@@ -141,7 +142,7 @@ private:
     void write_poses(std::string fname, Matrix4f saved_pose); 
 
 
-    Matrix4f Optimization(const float* idepth); 
+    Matrix4f Optimization(const float* idepth, const float* d_gradientX, const float* d_gradientY); 
     Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY); 
     
 

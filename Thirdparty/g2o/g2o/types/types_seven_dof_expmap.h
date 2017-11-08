@@ -287,29 +287,31 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           return_idx = -1;
           return 0;
       }
-      else if(v1->ImageD[idx]<=0)
+      else if(!std::isfinite(v1->ImageD[idx]))
       {
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
           return 0;
       }
-      else if(v1->ImageGx[idx]==0 && v1->ImageGy[idx]==0)
-      {
+     else if(!std::isfinite(v1->ImageGx[idx]) || !std::isfinite(v1->ImageGy[idx]))
+     {
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
           return 0;
-      }
+
+     }
       else
       {
           Matrix<double, 1, 1> e1(v1->ImageD[idx]);
           Matrix<double, 1, 1> obsz(v1->estimate().map(v2->estimate())[2]);
           _information<< v1->ImageInfo[idx];
           _error = obsz-e1;
-        
-//          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
-//          _error << err;
+
+          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
+          _error << err;
+//          std::cout<<_error<<std::endl;
 
           if(v1->occ_image[idx]>0.0f){
             float error_abs = _error[0]>0?_error[0]:-_error[0]; 
@@ -328,21 +330,21 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
               return 0;
             }  
           }
-          _measurement = 1.0f;
-          return_idx = -1; 
-          return 1;
+//          _measurement = 1.0f;
+//          return_idx = -1; 
+//          return 1;
 
-//          if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
-//              _error<< 0.0f;
-//              _measurement = 0.0f;
-//              return_idx = -1; 
-//              return 0;
-//          }
-//          else{
-//            _measurement = 1.0f;
-//            return_idx = -1;   
-//            return 1;
-//          }
+          if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
+              _error<< 0.0f;
+              _measurement = 0.0f;
+              return_idx = -1; 
+              return 0;
+          }
+          else{
+            _measurement = 1.0f;
+            return_idx = -1;   
+            return 1;
+          }
 
       }
 

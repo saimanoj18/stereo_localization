@@ -81,7 +81,7 @@ namespace g2o {
       t=get_monotonic_time();
     }
 
-    double currentChi = _optimizer->activeRobustChi2()/((float)innum);//YJ
+    double currentChi = _optimizer->activeRobustChi2()/((float)innum+1);//YJ
 //    double currentChi = _optimizer->activeRobustChi2();
     double tempChi=currentChi;
 
@@ -127,7 +127,7 @@ namespace g2o {
 //      tempChi = _optimizer->activeRobustChi2();
 
       innum = _optimizer->computeActiveErrors();
-      tempChi = _optimizer->activeRobustChi2()/((float)innum);//YJ
+      tempChi = _optimizer->activeRobustChi2()/((float)innum+1);//YJ
 
 //      _optimizer->computePartialErrors(true);//YJ
 //      tempChi = _optimizer->activeRobustChi2();
