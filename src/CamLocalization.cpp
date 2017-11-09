@@ -621,16 +621,16 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     delete [] occ_container;
     delete [] occ_idx;
 
-    float res_x, res_y, res_z;
-    res_x = result_mat(0,3)>0?result_mat(0,3):-result_mat(0,3);
-    res_y = result_mat(1,3)>0?result_mat(1,3):-result_mat(1,3);
-    res_z = result_mat(2,3)>0?result_mat(2,3):-result_mat(2,3);
-//    result_mat(2,3) = -result_mat(2,3);
-    if (res_x>0.5) result_mat(0,3) = 0;//result_mat(0,3)>0?0.1:-0.1;
-    if (res_y>0.5) result_mat(1,3) = 0;//result_mat(1,3)>0?0.1:-0.1;
-    if (res_z>0.5) result_mat(2,3) = 0;//result_mat(2,3)>0?0.1:-0.1;// || g2oresult<4 
-    else return result_mat;
-
+//    float res_x, res_y, res_z;
+//    res_x = result_mat(0,3)>0?result_mat(0,3):-result_mat(0,3);
+//    res_y = result_mat(1,3)>0?result_mat(1,3):-result_mat(1,3);
+//    res_z = result_mat(2,3)>0?result_mat(2,3):-result_mat(2,3);
+////    result_mat(2,3) = -result_mat(2,3);
+//    if (res_x>0.5) result_mat(0,3) = 0;//result_mat(0,3)>0?0.1:-0.1;
+//    if (res_y>0.5) result_mat(1,3) = 0;//result_mat(1,3)>0?0.1:-0.1;
+//    if (res_z>1.0) result_mat(2,3) = 0;//result_mat(2,3)>0?0.1:-0.1;// || g2oresult<4 
+//    else return result_mat;
+    return result_mat;
 
 //    int nMoreIterations;
 //    if(nBad>0){
