@@ -38,7 +38,7 @@ set(CMAKE_CXX_FLAGS
 #add_library(stereo_localization
 #    src/stereo_localization.cpp
 #)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 include_directories(
     include

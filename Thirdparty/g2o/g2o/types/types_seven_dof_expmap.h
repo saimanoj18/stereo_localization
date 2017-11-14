@@ -66,13 +66,13 @@ namespace g2o {
       if (_fix_scale)
         update[6] = 0;
 
-      std::cout<<update<<std::endl;
+//      std::cout<<update<<std::endl;
       setEstimatePrev(estimate());
 
       Sim3 s(update);
       setEstimate(s*estimate());
       //setEstimate(estimate()*s.inverse());
-      std::cout<<estimate()<<std::endl;
+//      std::cout<<estimate()<<std::endl;
     }
 
     Vector2d _principle_point1, _principle_point2;
@@ -330,21 +330,21 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
               return 0;
             }  
           }
-//          _measurement = 1.0f;
-//          return_idx = -1; 
-//          return 1;
+          _measurement = 1.0f;
+          return_idx = -1; 
+          return 1;
 
-          if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
-              _error<< 0.0f;
-              _measurement = 0.0f;
-              return_idx = -1; 
-              return 0;
-          }
-          else{
-            _measurement = 1.0f;
-            return_idx = -1;   
-            return 1;
-          }
+//          if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
+//              _error<< 0.0f;
+//              _measurement = 0.0f;
+//              return_idx = -1; 
+//              return 0;
+//          }
+//          else{
+//            _measurement = 1.0f;
+//            return_idx = -1;   
+//            return 1;
+//          }
 
       }
 

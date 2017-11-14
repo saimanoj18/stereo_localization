@@ -139,8 +139,8 @@ namespace g2o {
         tempChi=std::numeric_limits<double>::max();
 
       rho = (currentChi-tempChi);
-      cout<<"rho: "<<rho<<endl;
-      cout<<"lambda: "<<_currentLambda<<endl;
+//      cout<<"rho: "<<rho<<endl;
+//      cout<<"lambda: "<<_currentLambda<<endl;
       double scale = computeScale();
       scale += 1e-3; // make sure it's non-zero :)
       rho /=  scale;

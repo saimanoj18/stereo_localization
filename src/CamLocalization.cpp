@@ -27,7 +27,8 @@ void CamLocalization::Refresh()
 
     if(Velo_received && Left_received && Right_received)
     {
-
+        int64_t start_time;
+        start_time = timestamp_now ();
 
         int frame_half = (int) frameID/2;
         cout<<frame_half<<endl;
@@ -151,18 +152,18 @@ void CamLocalization::Refresh()
         }
 
 
-        cv::imshow("dgx_plot", dgx_plot);
-        cv::waitKey(3);
-        cv::moveWindow("dgx_plot", 50,20);
-        cv::imshow("dgy_plot", dgy_plot);
-        cv::waitKey(3);
-        cv::moveWindow("dgy_plot", 600,20);  
-        cv::imshow("info_image", info_image);
-        cv::waitKey(3);
-        cv::moveWindow("info_image", 1000,20);
-        cv::imshow("depth_image", depth_image);
-        cv::waitKey(3);
-        cv::moveWindow("depth_image", 1000,70);
+//        cv::imshow("dgx_plot", dgx_plot);
+//        cv::waitKey(3);
+//        cv::moveWindow("dgx_plot", 50,20);
+//        cv::imshow("dgy_plot", dgy_plot);
+//        cv::waitKey(3);
+//        cv::moveWindow("dgy_plot", 600,20);  
+//        cv::imshow("info_image", info_image);
+//        cv::waitKey(3);
+//        cv::moveWindow("info_image", 1000,20);
+//        cv::imshow("depth_image", depth_image);
+//        cv::waitKey(3);
+//        cv::moveWindow("depth_image", 1000,70);
 
         
         //Initialize EST_pose, velo_cloud
@@ -214,7 +215,10 @@ void CamLocalization::Refresh()
         delete [] depth;
         delete [] depth_info;
 
-//        cout<<"Elapsed time: %"<<end_time - start_time<<" usecs\n"<<endl;
+        int64_t end_time;
+        end_time = timestamp_now ();
+
+        cout<<"Elapsed time: %"<<end_time - start_time<<" usecs\n"<<endl;
     }    
 
 
@@ -402,7 +406,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
 {
     //g2o optimization 
     cout<<"g2o Optimization"<<endl;
-    const float deltaHuber = sqrt(1000);//1000 may be the best choice
+    const float deltaHuber = sqrt(10);//1000 may be the best choice
 
     //solver initialization
     g2o::SparseOptimizer optimizer;
@@ -462,7 +466,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
         
         
-        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*0.54/100){
+        if ( pts[i][2]>0.0f ){ // && pts[i][2]<16*K(0,0)*0.54/100){
 //            if(Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0)
 //            {
                 
@@ -532,104 +536,92 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
     cout << "Inlier nums: " << index << endl;
 
-    optimizer.setVerbose(true);
-    int g2oresult = optimizer.optimize(100);
+//    optimizer.setVerbose(true);
+    int g2oresult = optimizer.optimize(10);
 
     // Recover optimized Sim3
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
     g2o::Sim3 g2oS12 = vSim3_recov->estimate();      
 
-    //debug image
-    cv::Mat error_image = cv::Mat::zeros(cv::Size(width, height), CV_8UC3);
-    cv::Mat error_image_after = cv::Mat::zeros(cv::Size(width, height), CV_8UC3);
-    float error1 = 0;
-    int sum1 = 0;
-    float error2 = 0;
-    int sum2 = 0;
-    for(size_t i=0; i<numpts;i++)
-    {
+//    //debug image
+//    cv::Mat error_image = cv::Mat::zeros(cv::Size(width, height), CV_8UC3);
+//    cv::Mat error_image_after = cv::Mat::zeros(cv::Size(width, height), CV_8UC3);
+//    float error1 = 0;
+//    int sum1 = 0;
+//    float error2 = 0;
+//    int sum2 = 0;
+//    for(size_t i=0; i<numpts;i++)
+//    {
 
-        Vector2d Ipos( vSim3->cam_map(pts[i]) );
-        int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
+//        Vector2d Ipos( vSim3->cam_map(pts[i]) );
+//        int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
-        Matrix<double,3,1> pts_transformed = vSim3->estimate().map(pts[i]); 
-        Vector2d Ipos_trans( vSim3->cam_map(pts_transformed) );
-        int i_idx_trans = ((int)Ipos_trans[1])*vSim3->_width+((int)Ipos_trans[0]);
+//        Matrix<double,3,1> pts_transformed = vSim3->estimate().map(pts[i]); 
+//        Vector2d Ipos_trans( vSim3->cam_map(pts_transformed) );
+//        int i_idx_trans = ((int)Ipos_trans[1])*vSim3->_width+((int)Ipos_trans[0]);
 
-        if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0)
-        {
-            if ( pts[i][2]>0 && idepth_var[i_idx]>0) //&& idepth_var[i_idx]>0)// && pts[i][2]<20 )//&& idepth_var[i_idx]>0)
-            {
-                float derr = pts[i][2]-idepth[i_idx];
-                
-                if(derr<1.0f && derr>-1.0f)
-                {
-                cv::Vec3b residual_color;
-                if(derr>0)residual_color = cv::Vec3b(0,0,derr*255);//Red
-                else residual_color = cv::Vec3b(-derr*255,0,0);//Blue
-                error_image.at<cv::Vec3b>(Ipos[1],Ipos[0]) = residual_color;//Compute_error_color(derr,10.0f);
-                error1 += abs(derr);
-                sum1++;
-                }
-            }
-        }
-        if (Ipos_trans[0]<vSim3->_width && Ipos_trans[0]>=0 && Ipos_trans[1]<vSim3->_height && Ipos_trans[1]>=0)
-        {
-            if ( pts[i][2]>0 && idepth_var[i_idx_trans]>0) // && idepth_var[i_idx]>0)// && pts[i][2]<20 )//&& idepth_var[i_idx]>0)
-            {
-                float derr = pts_transformed[2]-idepth[i_idx_trans];
-                error_image_after.at<cv::Vec3b>(Ipos_trans[1],Ipos_trans[0]) = Compute_error_color(derr,10.0f);
-                error2 += abs(derr);
-                sum2++;
-            }
-        }
-    }
-    cv::imshow("error_image", error_image);
-    cv::waitKey(3);
-    cv::moveWindow("error_image", 50,300);
-    cv::imshow("error_image_after", error_image_after);
-    cv::waitKey(3);
-    cv::moveWindow("error_image_after", 600,300); 
+//        if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0)
+//        {
+//            if ( pts[i][2]>0 && idepth_var[i_idx]>0) //&& idepth_var[i_idx]>0)// && pts[i][2]<20 )//&& idepth_var[i_idx]>0)
+//            {
+//                float derr = pts[i][2]-idepth[i_idx];
+//                
+//                if(derr<1.0f && derr>-1.0f)
+//                {
+//                cv::Vec3b residual_color;
+//                if(derr>0)residual_color = cv::Vec3b(0,0,derr*255);//Red
+//                else residual_color = cv::Vec3b(-derr*255,0,0);//Blue
+//                error_image.at<cv::Vec3b>(Ipos[1],Ipos[0]) = residual_color;//Compute_error_color(derr,10.0f);
+//                error1 += abs(derr);
+//                sum1++;
+//                }
+//            }
+//        }
+//        if (Ipos_trans[0]<vSim3->_width && Ipos_trans[0]>=0 && Ipos_trans[1]<vSim3->_height && Ipos_trans[1]>=0)
+//        {
+//            if ( pts[i][2]>0 && idepth_var[i_idx_trans]>0) // && idepth_var[i_idx]>0)// && pts[i][2]<20 )//&& idepth_var[i_idx]>0)
+//            {
+//                float derr = pts_transformed[2]-idepth[i_idx_trans];
+//                error_image_after.at<cv::Vec3b>(Ipos_trans[1],Ipos_trans[0]) = Compute_error_color(derr,10.0f);
+//                error2 += abs(derr);
+//                sum2++;
+//            }
+//        }
+//    }
+//    cv::imshow("error_image", error_image);
+//    cv::waitKey(3);
+//    cv::moveWindow("error_image", 50,300);
+//    cv::imshow("error_image_after", error_image_after);
+//    cv::waitKey(3);
+//    cv::moveWindow("error_image_after", 600,300); 
 
-    cout<<"errors: "<<error1/sum1<<", "<<error2/sum2<<endl;
-    cout<<"nums: "<<sum1<<", "<<sum2<<endl;
+//    cout<<"errors: "<<error1/sum1<<", "<<error2/sum2<<endl;
+//    cout<<"nums: "<<sum1<<", "<<sum2<<endl;
 
 
-    // Check inliers
-    int nBad=0;
-    for(size_t i=0; i<vpEdges12.size();i++)
-    {
-        g2o::EdgeSim3ProjectXYZD* e12 = vpEdges12[i];
-        if(!e12)
-            continue;
+//    // Check inliers
+//    int nBad=0;
+//    for(size_t i=0; i<vpEdges12.size();i++)
+//    {
+//        g2o::EdgeSim3ProjectXYZD* e12 = vpEdges12[i];
+//        if(!e12)
+//            continue;
 
-        if(e12->chi2()>100)
-        {
-            size_t idx = vnIndexEdge[i];
-            optimizer.removeEdge(e12);
-            vpEdges12[i]=NULL;
-            nBad++;
-        }
-    }
-//    return Sim3toMat(g2oS12);
+//        if(e12->chi2()>100)
+//        {
+//            size_t idx = vnIndexEdge[i];
+//            optimizer.removeEdge(e12);
+//            vpEdges12[i]=NULL;
+//            nBad++;
+//        }
+//    }
 
-//    cout<<"Number of nBad is: "<<nBad<<", "<<vpEdges12.size()<<endl;
     cout<<"g2o success?: "<<g2oresult<<endl;
     Matrix4f result_mat = Sim3toMat(g2oS12);
-//    result_mat(2,3) = -result_mat(2,3);
 
     delete [] occ_container;
     delete [] occ_idx;
 
-//    float res_x, res_y, res_z;
-//    res_x = result_mat(0,3)>0?result_mat(0,3):-result_mat(0,3);
-//    res_y = result_mat(1,3)>0?result_mat(1,3):-result_mat(1,3);
-//    res_z = result_mat(2,3)>0?result_mat(2,3):-result_mat(2,3);
-////    result_mat(2,3) = -result_mat(2,3);
-//    if (res_x>0.5) result_mat(0,3) = 0;//result_mat(0,3)>0?0.1:-0.1;
-//    if (res_y>0.5) result_mat(1,3) = 0;//result_mat(1,3)>0?0.1:-0.1;
-//    if (res_z>1.0) result_mat(2,3) = 0;//result_mat(2,3)>0?0.1:-0.1;// || g2oresult<4 
-//    else return result_mat;
     return result_mat;
 
 //    int nMoreIterations;
