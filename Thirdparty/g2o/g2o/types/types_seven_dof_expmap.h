@@ -304,13 +304,15 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ,
       {
           Matrix<double, 1, 1> e1(_measurement);
           Matrix<double, 1, 1> obsz(v1->ImageD[idx]);
-          _information<< v1->ImageInfo[idx];
+          _information<< v1->ImageInfo[idx];//1000;// 
           _error = obsz-e1;
           
+//          if(!std::isfinite(_information[0]))std::cout<<_error<<std::endl;
+        
+
 //          std::cout<<"obsz: "<<obsz<<std::endl;
 //          std::cout<<"e1: "<<e1<<std::endl;  
 //          std::cout<<_error<<std::endl;
-//          _measurement = 1.0f;
           return_idx = -1; 
           return 1;
 

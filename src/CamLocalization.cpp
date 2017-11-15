@@ -71,9 +71,9 @@ void CamLocalization::Refresh()
             
             //reference images
             if(frameID>2){
-                ref_container[i] = ref_image.at<char>(v,u); 
-                igx_container[i] = ref_igx.at<float>(v,u);
-                igy_container[i] = ref_igy.at<float>(v,u);
+                ref_container[i] = ref_image.at<float>(v,u);
+                igx_container[i] = ref_igx.at<float>(v,u)/32.0f;
+                igy_container[i] = ref_igy.at<float>(v,u)/32.0f;
             }
 
         }
@@ -82,9 +82,10 @@ void CamLocalization::Refresh()
         cv::Mat dgx_image, dgy_image; // = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_8UC3);
         cv::Scharr(depth_image, dgx_image, CV_32FC1, 1, 0);
         cv::Scharr(depth_image, dgy_image, CV_32FC1, 0, 1);
-        cv::Mat igx_image, igy_image;
-        cv::Scharr(left_image, igx_image, CV_32FC1, 1, 0);
-        cv::Scharr(left_image, igy_image, CV_32FC1, 0, 1);        
+        cv::Mat igx_image, igy_image, left_scaled;
+        cv::normalize(left_image, left_scaled, 0, 1, CV_MINMAX, CV_32FC1);   
+        cv::Scharr(left_scaled, igx_image, CV_32FC1, 1, 0);
+        cv::Scharr(left_scaled, igy_image, CV_32FC1, 0, 1);     
 
         float* depth_gradientX = new float[width*height]();
         float* depth_gradientY = new float[width*height]();
@@ -124,10 +125,10 @@ void CamLocalization::Refresh()
 
 
         if(frameID>2){
-//            //tracking
+            //tracking
 //            update_pose = Matrix4f::Identity();
-//            update_pose = visual_tracking(ref_container,igx_container,igy_container,depth,depth_info,left_image);
-//            cout<<update_pose<<endl;
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,depth_info,depth,left_scaled,update_pose);
+            cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
             EST_pose = EST_pose*update_pose;
@@ -136,6 +137,7 @@ void CamLocalization::Refresh()
             //localization
             optimized_T = Matrix4f::Identity();
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY);
+            cout<<optimized_T<<endl;
             pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
             EST_pose = EST_pose*optimized_T.inverse();
 
@@ -146,7 +148,7 @@ void CamLocalization::Refresh()
         MapPub.PublishMap(image_cloud,3);
         
         //prepare reference images
-        left_image.copyTo(ref_image);
+        left_scaled.copyTo(ref_image);
         igx_image.copyTo(ref_igx);
         igy_image.copyTo(ref_igy);
 
@@ -239,7 +241,7 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
                 if(ODO_time!=wtb.stamp_){
                     Matrix4f prev_pose = GT_pose;
                     pcl_ros::transformAsMatrix (wtb, GT_pose);
-                    update_pose = prev_pose.inverse()*GT_pose;     
+//                    update_pose = prev_pose.inverse()*GT_pose;     
                     ODO_time=wtb.stamp_;
 
                     cout<<"Velodyne input: "<<velo_cloud->points.size()<<endl;
@@ -292,7 +294,7 @@ void CamLocalization::CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& m
 //    cout<<"K Matrix: "<<K<<endl;
 }
 
-Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur)
+Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur, Matrix4f init_pose)
 {
     cout<<"tracking start"<<endl;
     const float deltaHuber = sqrt(10);//10 may be the best choice
@@ -307,8 +309,9 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     // SET SIMILARITY VERTEX
     g2o::VertexSim3Expmap * vSim3 = new g2o::VertexSim3Expmap();
     vSim3->_fix_scale= false;
-    Matrix3d R = Matrix3d::Identity();
-    Vector3d t(0,0,0);
+    Matrix4d Rt = init_pose.cast<double> ();
+    Matrix3d R = Rt.block<3,3>(0,0);
+    Vector3d t(Rt(0,3),Rt(1,3),Rt(2,3));
     const double s = 1;
     g2o::Sim3 g2oS_init(R,t,s);
     vSim3->setEstimate(g2oS_init);
@@ -357,7 +360,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
             g2o::EdgeSim3ProjectXYZ* e01 = new g2o::EdgeSim3ProjectXYZ();
             e01->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
             e01->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-            e01->setMeasurement(cur.at<char>(v,u));//(e1-e2);//(pts[i][2]);//
+            e01->setMeasurement(cur.at<float>(v,u));//(e1-e2);//(pts[i][2]);//
             info << i_var[i_idx];
 //            info << 1000.0f;
             e01->setInformation(info);
@@ -374,7 +377,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
-    optimizer.setVerbose(true);
+//    optimizer.setVerbose(true);
     int g2oresult = optimizer.optimize(10);
 
     // Recover optimized Sim3

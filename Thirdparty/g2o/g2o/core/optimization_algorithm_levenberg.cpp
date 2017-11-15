@@ -74,7 +74,7 @@ namespace g2o {
     double t=get_monotonic_time();
     int innum;//YJ
     innum = _optimizer->computeActiveErrors();
-    _optimizer->computeActiveErrors();
+    //_optimizer->computeActiveErrors();
     G2OBatchStatistics* globalStats = G2OBatchStatistics::globalStats();
     if (globalStats) {
       globalStats->timeResiduals = get_monotonic_time()-t;
@@ -128,6 +128,9 @@ namespace g2o {
 
       innum = _optimizer->computeActiveErrors();
       tempChi = _optimizer->activeRobustChi2()/((float)innum+1);//YJ
+
+//      std::cout<<tempChi<<std::endl;
+//      std::cout<<innum<<std::endl; 
 
 //      _optimizer->computePartialErrors(true);//YJ
 //      tempChi = _optimizer->activeRobustChi2();

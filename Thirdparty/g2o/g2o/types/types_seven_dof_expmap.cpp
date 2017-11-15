@@ -333,9 +333,6 @@ namespace g2o {
         Tp_note(3,4) = 0;
         Tp_note(3,5) = 0;
 
-
-        Matrix<double,1,4> dm;
-        dm<<0,0,1.0f,0;
         _jacobianOplusXi << 0,0,0;
         _jacobianOplusXj.block<1,6>(0,0) = D_u*K_p*Tp_note;//-D_u*K_p*Tp_note;//
          
