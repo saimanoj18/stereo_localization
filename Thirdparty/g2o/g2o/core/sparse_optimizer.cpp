@@ -72,7 +72,7 @@ namespace g2o{
 #   pragma omp parallel for default (shared) if (_activeEdges.size() > 50)
 #   endif
     OptimizableGraph::Edge* e = _activeEdges[0];
-    e->initOcclusionimg();
+//    e->initOcclusionimg();
     for (int k = 0; k < static_cast<int>(_activeEdges.size()); ++k) {
       OptimizableGraph::Edge* e = _activeEdges[k];
 //      e->computeError();
@@ -81,7 +81,7 @@ namespace g2o{
       innum += e->computeError2(new_idx);
       if (new_idx>-1){
         OptimizableGraph::Edge* e = _activeEdges[new_idx];
-        e->clearMeasurement();
+//        e->clearMeasurement();
       }
     }
 
@@ -99,34 +99,34 @@ namespace g2o{
 
   }
 
-  void SparseOptimizer::computePartialErrors(bool version)
-  {
-    // call the callbacks in case there is something registered
-    HyperGraphActionSet& actions = _graphActions[AT_COMPUTEACTIVERROR];
-    if (actions.size() > 0) {
-      for (HyperGraphActionSet::iterator it = actions.begin(); it != actions.end(); ++it)
-        (*(*it))(this);
-    }
+//  void SparseOptimizer::computePartialErrors(bool version)
+//  {
+//    // call the callbacks in case there is something registered
+//    HyperGraphActionSet& actions = _graphActions[AT_COMPUTEACTIVERROR];
+//    if (actions.size() > 0) {
+//      for (HyperGraphActionSet::iterator it = actions.begin(); it != actions.end(); ++it)
+//        (*(*it))(this);
+//    }
 
-#   ifdef G2O_OPENMP
-#   pragma omp parallel for default (shared) if (_activeEdges.size() > 50)
-#   endif
-    for (int k = 0; k < static_cast<int>(_activeEdges.size()); ++k) {
-      OptimizableGraph::Edge* e = _activeEdges[k];
-      e->computePartialError(version);
-    }
+//#   ifdef G2O_OPENMP
+//#   pragma omp parallel for default (shared) if (_activeEdges.size() > 50)
+//#   endif
+//    for (int k = 0; k < static_cast<int>(_activeEdges.size()); ++k) {
+//      OptimizableGraph::Edge* e = _activeEdges[k];
+//      e->computePartialError(version);
+//    }
 
-#  ifndef NDEBUG
-    for (int k = 0; k < static_cast<int>(_activeEdges.size()); ++k) {
-      OptimizableGraph::Edge* e = _activeEdges[k];
-      bool hasNan = arrayHasNaN(e->errorData(), e->dimension());
-      if (hasNan) {
-        cerr << "computeActiveErrors(): found NaN in error for edge " << e << endl;
-      }
-    }
-#  endif
+//#  ifndef NDEBUG
+//    for (int k = 0; k < static_cast<int>(_activeEdges.size()); ++k) {
+//      OptimizableGraph::Edge* e = _activeEdges[k];
+//      bool hasNan = arrayHasNaN(e->errorData(), e->dimension());
+//      if (hasNan) {
+//        cerr << "computeActiveErrors(): found NaN in error for edge " << e << endl;
+//      }
+//    }
+//#  endif
 
-  }
+//  }
 
   double SparseOptimizer::activeChi2( ) const
   {

@@ -123,36 +123,36 @@ namespace g2o {
   /**Sim3ProjectXYZ*/
 
   EdgeSim3ProjectXYZ::EdgeSim3ProjectXYZ() :
-  BaseBinaryEdge<3, Vector3d, VertexSBAPointXYZ, VertexSim3Expmap>()
+  BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexSim3Expmap>()
   {
   }
 
   bool EdgeSim3ProjectXYZ::read(std::istream& is)
   {
-    for (int i=0; i<2; i++)
-    {
-      is >> _measurement[i];
-    }
+//    for (int i=0; i<2; i++)
+//    {
+//      is >> _measurement[i];
+//    }
 
-    for (int i=0; i<2; i++)
-      for (int j=i; j<2; j++) {
-  is >> information()(i,j);
-      if (i!=j)
-        information()(j,i)=information()(i,j);
-    }
+//    for (int i=0; i<2; i++)
+//      for (int j=i; j<2; j++) {
+//  is >> information()(i,j);
+//      if (i!=j)
+//        information()(j,i)=information()(i,j);
+//    }
     return true;
   }
 
   bool EdgeSim3ProjectXYZ::write(std::ostream& os) const
   {
-    for (int i=0; i<2; i++){
-      os  << _measurement[i] << " ";
-    }
+//    for (int i=0; i<2; i++){
+//      os  << _measurement[i] << " ";
+//    }
 
-    for (int i=0; i<2; i++)
-      for (int j=i; j<2; j++){
-  os << " " <<  information()(i,j);
-    }
+//    for (int i=0; i<2; i++)
+//      for (int j=i; j<2; j++){
+//  os << " " <<  information()(i,j);
+//    }
     return os.good();
   }
 
@@ -223,47 +223,13 @@ namespace g2o {
     int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
 
-    if (_measurement==0)//(Ipos[0]>=vj->_width || Ipos[0]<0 || Ipos[1]>=vj->_height || Ipos[1]<0 || abs(_error[0])>1.0f)
+    if (_measurement==0)
     {
 //      _error<< 0.0f;
       _jacobianOplusXi << 0,0,0;
       _jacobianOplusXj<<0,0,0,0,0,0,0;
 //      _information<<0.0f;
     }
-//    else if(!std::isfinite(vj->ImageD[idx]))
-//    {
-////      _error<< 0.0f;
-//      _jacobianOplusXi << 0,0,0;
-//      _jacobianOplusXj<<0,0,0,0,0,0,0;
-////      _information<<0.0f;
-
-//    }
-//    else if(!std::isfinite(vj->ImageGx[idx]) || !std::isfinite(vj->ImageGy[idx]))
-//    {
-////      _error<< 0.0f;
-//      _jacobianOplusXi << 0,0,0;
-//      _jacobianOplusXj<<0,0,0,0,0,0,0;
-////      _information<<0.0f;
-
-//    }
-//    else if(xyz_trans[2]==0)
-//    {
-////      _error<< 0.0f;
-//      _jacobianOplusXi << 0,0,0;
-//      _jacobianOplusXj<<0,0,0,0,0,0,0;
-////      _information<<0.0f;
-
-//    }
-//    else if (_error[0]>10.0f|| _error[0]<-10.0f)
-//    {
-//      _jacobianOplusXi << 0,0,0;
-//      _jacobianOplusXj<<0,0,0,0,0,0,0;
-//    }
-//    else if ( abs(_error[0])==0.0f)  //(abs(_error[0])<0.1f) // || abs(_error[0])>10.0f) 
-//    {
-//      _jacobianOplusXi << 0,0,0;
-//      _jacobianOplusXj<<0,0,0,0,0,0,0;
-//    }
     else
     {
 
@@ -296,29 +262,12 @@ namespace g2o {
         Tp_note(3,4) = 0;
         Tp_note(3,5) = 0;
 
-//        Tp_note(0,0) = -Tp_note(0,0);
-//        Tp_note(1,0) = -Tp_note(1,0);
-//        Tp_note(2,0) = -Tp_note(2,0);
 
         Matrix<double,1,4> dm;
         dm<<0,0,1.0f,0;
         _jacobianOplusXi << 0,0,0;
         _jacobianOplusXj.block<1,6>(0,0) = (dm-D_u*K_p)*Tp_note;//-D_u*K_p*Tp_note;//
-        if(_jacobianOplusXj(0,0)!=_jacobianOplusXj(0,0)){
-        std::cout<<"jacobian nan:"<<_jacobianOplusXj(0,0)<<std::endl;
-        std::cout<<vj->_focal_length1<<std::endl;
-        std::cout<<D_u<<std::endl;
-        std::cout<<K_p<<std::endl;
-        }
-        
-//        std::cout<<_jacobianOplusXj<<std::endl;
-//        _jacobianOplusXj(0,0) = 0;
-//        _jacobianOplusXj(0,1) = 0;
-//        _jacobianOplusXj(0,2) = 0;
-//        _jacobianOplusXj(0,3) = 0;
-//        _jacobianOplusXj(0,4) = 0;        
-//        _jacobianOplusXj(0,5) = -_jacobianOplusXj(0,5);
-//        if(D_u*D_u.transpose()>0.1)_jacobianOplusXj(0,5) = 0;   
+         
     }
 
 
@@ -327,47 +276,72 @@ namespace g2o {
 
 
 
-//  void EdgeSim3ProjectXYZ::linearizeOplus()
-//  {
-//    VertexSim3Expmap * vj = static_cast<VertexSim3Expmap *>(_vertices[1]);
-//    Sim3 T = vj->estimate();
+  void EdgeSim3ProjectXYZ::linearizeOplus()
+  {
+    VertexSim3Expmap * vj = static_cast<VertexSim3Expmap *>(_vertices[1]);
+    Sim3 T = vj->estimate();
+    VertexSBAPointXYZ* vi = static_cast<VertexSBAPointXYZ*>(_vertices[0]);
+    Vector3d xyz = vi->estimate();
+    Vector3d xyz_trans = T.map(xyz);
 
-//    VertexPointXYZ* vi = static_cast<VertexPointXYZ*>(_vertices[0]);
-//    Vector3d xyz = vi->estimate();
-//    Vector3d xyz_trans = T.map(xyz);
-
-//    double x = xyz_trans[0];
-//    double y = xyz_trans[1];
-//    double z = xyz_trans[2];
-//    double z_2 = z*z;
-
-//    Matrix<double,2,3> tmp;
-//    tmp(0,0) = _focal_length(0);
-//    tmp(0,1) = 0;
-//    tmp(0,2) = -x/z*_focal_length(0);
-
-//    tmp(1,0) = 0;
-//    tmp(1,1) = _focal_length(1);
-//    tmp(1,2) = -y/z*_focal_length(1);
-
-//    _jacobianOplusXi =  -1./z * tmp * T.rotation().toRotationMatrix();
-
-//    _jacobianOplusXj(0,0) =  x*y/z_2 * _focal_length(0);
-//    _jacobianOplusXj(0,1) = -(1+(x*x/z_2)) *_focal_length(0);
-//    _jacobianOplusXj(0,2) = y/z *_focal_length(0);
-//    _jacobianOplusXj(0,3) = -1./z *_focal_length(0);
-//    _jacobianOplusXj(0,4) = 0;
-//    _jacobianOplusXj(0,5) = x/z_2 *_focal_length(0);
-//    _jacobianOplusXj(0,6) = 0; // scale is ignored
+    Vector2d Ipos(vj->cam_map(xyz_trans));
+    int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
 
-//    _jacobianOplusXj(1,0) = (1+y*y/z_2) *_focal_length(1);
-//    _jacobianOplusXj(1,1) = -x*y/z_2 *_focal_length(1);
-//    _jacobianOplusXj(1,2) = -x/z *_focal_length(1);
-//    _jacobianOplusXj(1,3) = 0;
-//    _jacobianOplusXj(1,4) = -1./z *_focal_length(1);
-//    _jacobianOplusXj(1,5) = y/z_2 *_focal_length(1);
-//    _jacobianOplusXj(1,6) = 0; // scale is ignored
-//  }
+    if (Ipos[0]>=vj->_width || Ipos[0]<0 || Ipos[1]>=vj->_height || Ipos[1]<0 )
+    {
+      _jacobianOplusXi << 0,0,0;
+      _jacobianOplusXj<<0,0,0,0,0,0,0;
+    }
+    else if(!std::isfinite(vj->ImageD[idx]))
+    {
+      _jacobianOplusXi << 0,0,0;
+      _jacobianOplusXj<<0,0,0,0,0,0,0;
+    }
+    else if(!std::isfinite(vj->ImageGx[idx]) || !std::isfinite(vj->ImageGy[idx]))
+    {
+      _jacobianOplusXi << 0,0,0;
+      _jacobianOplusXj<<0,0,0,0,0,0,0;
+    }
+    else
+    {
+        Matrix<double,1,2> D_u;
+        Matrix<double,2,4> K_p;
+        Matrix<double,4,6> p_note;
+
+        D_u(0,0) = vj->ImageGx[idx];
+        D_u(0,1) = vj->ImageGy[idx];
+
+
+        K_p(0,0) = vj->_focal_length1[0]/xyz_trans[2];
+        K_p(0,1) = 0;
+        K_p(0,2) = -vj->_focal_length1[0]*xyz_trans[0]/(xyz_trans[2]*xyz_trans[2]);//0;//vj->_principle_point1[0]/xyz_trans[2];//0;////
+        K_p(0,3) = 0;//vj->_principle_point1[0];//
+        K_p(1,0) = 0;
+        K_p(1,1) = vj->_focal_length1[1]/xyz_trans[2];
+        K_p(1,2) = -vj->_focal_length1[1]*xyz_trans[1]/(xyz_trans[2]*xyz_trans[2]);//0;//vj->_principle_point1[1]/xyz_trans[2];//0;////
+        K_p(1,3) = 0;//vj->_principle_point1[1];//
+
+
+        Matrix<double,4,6> Tp_note;
+        Tp_note.block<3,3>(0,0) = -1*skew(xyz_trans);//Matrix3d::Zero();//
+        Tp_note.block<3,3>(0,3) = 1*Matrix3d::Identity();
+        Tp_note(3,0) = 0;
+        Tp_note(3,1) = 0;
+        Tp_note(3,2) = 0;
+        Tp_note(3,3) = 0;
+        Tp_note(3,4) = 0;
+        Tp_note(3,5) = 0;
+
+
+        Matrix<double,1,4> dm;
+        dm<<0,0,1.0f,0;
+        _jacobianOplusXi << 0,0,0;
+        _jacobianOplusXj.block<1,6>(0,0) = D_u*K_p*Tp_note;//-D_u*K_p*Tp_note;//
+         
+    }
+
+  }
+
 
 } // end namespace

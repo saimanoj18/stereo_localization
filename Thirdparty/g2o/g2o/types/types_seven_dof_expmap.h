@@ -107,9 +107,8 @@ namespace g2o {
     const float* ImageGy;
     const float* ImageInfo;
 
-    float* occ_image;
-    int* occ_idx;
-//    float saved_error;
+//    float* occ_image;
+//    int* occ_idx;
 
     bool _fix_scale;
 
@@ -160,21 +159,6 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
     virtual bool read(std::istream& is);
     virtual bool write(std::ostream& os) const;
 
-    void initOcclusionimg()
-    {
-        const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
-//        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
-        for(size_t i=0; i<v1->_width*v1->_height;i++)
-        {
-            v1->occ_image[i] = 0.0f;
-            v1->occ_idx[i] = -1;
-        }
-    }
-    void clearMeasurement()
-    {
-        _error<< 0.0f;
-        _measurement = 0.0f;
-    }
     void computeError()
     {
       const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
@@ -201,76 +185,10 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = (obsz-e1);
           _measurement = 1.0f;
-//          if(abs(_error[0])>10.0f){
-//              _error<< 0.0f;
-//              _measurement = 0.0f;
-//          }
       }
 
     }
 
-    float computeNN(Matrix<double, 1, 1> cur_obs, float cur_err, int idx, const float* imageD, int width, int height)
-    {
-        float nn = cur_err;
-
-        if((idx-1)>=0 && ((idx-1)%width)<(width-1)){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-1]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx-1-width)>=0 && ((idx-1-width)%width)<(width-1)){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-1-width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx-1+width)<width*height && ((idx-1+width)%width)<(width-1)){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-1+width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+1)<width*height && ((idx+1)%width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+1]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+1-width)>0 && ((idx+1-width)%width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+1-width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+1+width)<width*height && ((idx+1+width)%width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+1+width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx-width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+width)<width*height){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        return nn;
-    }
 
     int computeError2(int& return_idx)
     {
@@ -309,94 +227,14 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = obsz-e1;
 
-//          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
-//          _error << err;
-
-//          if(v1->occ_image[idx]>0.0f){
-//            float error_abs = _error[0]>0?_error[0]:-_error[0]; 
-//            if(error_abs>v1->occ_image[idx]){
-//              _error<< 0.0f;
-//              _measurement = 0.0f;
-//              return_idx = -1;
-//              return 0;            
-//            }
-//            else{
-//              v1->occ_image[idx] = error_abs;
-//              int in_idx = return_idx;
-//              return_idx = v1->occ_idx[idx];
-//              v1->occ_idx[idx] = in_idx;
-//              _measurement = 1.0f;
-//              return 0;
-//            }  
-//          }
-
           _measurement = 1.0f;
           return_idx = -1; 
           return 1;
 
-//          if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
-//              _error<< 0.0f;
-//              _measurement = 0.0f;
-//              return_idx = -1; 
-//              return 0;
-//          }
-//          else{
-//            _measurement = 1.0f;
-//            return_idx = -1;   
-//            return 1;
-//          }
-
       }
 
     }
 
-    void computePartialError(bool version)
-    {
-      const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
-      const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
-
-      Vector2d Ipos;
-      int idx;
-      Matrix<double, 1, 1> obsz;
-      if(version){
-          Ipos = v1->cam_map(v1->estimate().map(v2->estimate()));
-          idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
-          obsz << v1->estimate().map(v2->estimate())[2];
-      }
-      else{
-          Ipos = v1->cam_map(v1->estimate_prev().map(v2->estimate()));
-          idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
-          obsz << v1->estimate_prev().map(v2->estimate())[2];
-      }
-
-      if (_measurement == 0)
-      {
-           _error<< 0.0f;
-          _measurement = 0.0f;
-      }
-      else if (Ipos[0]>=v1->_width || Ipos[0]<0 || Ipos[1]>=v1->_height || Ipos[1]<0 )
-      {
-          _error<< 0.0f;
-          _measurement = 0.0f;
-      }
-      else if(v1->ImageD[idx]<0 || v1->ImageInfo[idx]<0)
-      {
-          _error<< 0.0f;
-          _measurement = 0.0f;
-      }
-      else
-      {
-          Matrix<double, 1, 1> e1(v1->ImageD[idx]);
-          _information<< v1->ImageInfo[idx];
-          _error = (obsz-e1);
-          _measurement = 1.0f;
-//          if(version && abs(_error[0])>1.0f){
-//              _error<< 0.0f;
-//              _measurement = 0.0f;
-//          }
-      }
-
-    }
 
     virtual void linearizeOplus();
 
@@ -404,7 +242,7 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
 
 
 /**/
-class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<3, Vector3d,  VertexSBAPointXYZ, VertexSim3Expmap>
+class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ, VertexSim3Expmap>
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -417,11 +255,70 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<3, Vector3d,  VertexSBAPointXY
       const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
       const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
 
-      Vector3d obs(_measurement);
-      _error = obs-v1->estimate().map(v2->estimate());
+//      Vector3d obs(_measurement);
+//      _error = obs-v1->estimate().map(v2->estimate());
+    }
+    
+    int computeError2(int& return_idx)
+    {
+      const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
+      const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+
+      const Vector3d v3 = v1->estimate().map(v2->estimate());
+      
+     
+      Vector2d Ipos( v1->cam_map(v1->estimate().map(v2->estimate())) );
+      int idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
+
+//      std::cout<<Ipos<<std::endl;
+      if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1]))
+      {
+          _error<< 0.0f;
+//          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;            
+      }
+      else if (Ipos[0]>=v1->_width || Ipos[0]<0 || Ipos[1]>=v1->_height || Ipos[1]<0 )
+      {
+          _error<< 0.0f;
+//          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+      }
+      else if(!std::isfinite(v1->ImageD[idx]))
+      {
+          _error<< 0.0f;
+//          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+      }
+     else if(!std::isfinite(v1->ImageGx[idx]) || !std::isfinite(v1->ImageGy[idx]))
+     {
+          _error<< 0.0f;
+//          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+
+     }
+      else
+      {
+          Matrix<double, 1, 1> e1(_measurement);
+          Matrix<double, 1, 1> obsz(v1->ImageD[idx]);
+          _information<< v1->ImageInfo[idx];
+          _error = obsz-e1;
+          
+//          std::cout<<"obsz: "<<obsz<<std::endl;
+//          std::cout<<"e1: "<<e1<<std::endl;  
+//          std::cout<<_error<<std::endl;
+//          _measurement = 1.0f;
+          return_idx = -1; 
+          return 1;
+
+      }
+
     }
 
-   // virtual void linearizeOplus();
+   virtual void linearizeOplus();
 
 };
 

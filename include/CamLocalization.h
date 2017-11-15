@@ -68,23 +68,29 @@ public:
         EST_pose = Matrix4f::Identity();
         ODO_pose = Matrix4f::Identity();
         update_pose = Matrix4f::Identity();
-//        update_pose(0,3) = 0.54;
         update_pose(2,3) = 0.8;
         optimized_T = Matrix4f::Identity();
         GT_pose = Matrix4f::Identity();
 
-        read_poses("poses.txt");
-        cout<<"Pose loading is completed"<<endl;
+//        read_poses("poses.txt");
+//        cout<<"Pose loading is completed"<<endl;
 
     }
     ~CamLocalization(){
         //references.clear();
+        delete [] ref_container;
+        delete [] igx_container;
+        delete [] igy_container;
     
     }
     void CamLocInitialize(cv::Mat image);
     void Refresh();
     
 private:
+
+    //for time computation
+    int64_t start_time;
+    int64_t end_time;
 
     //for ros subscription
     ros::NodeHandle nh;
@@ -102,6 +108,12 @@ private:
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
     cv::Mat left_image;
     cv::Mat right_image;
+    cv::Mat ref_image;
+    cv::Mat ref_igx;
+    cv::Mat ref_igy;
+    float* ref_container;
+    float* igx_container;
+    float* igy_container;
     double fakeTimeStamp;
     int frameID;
 
@@ -141,8 +153,8 @@ private:
     void read_poses(std::string fname); 
     void write_poses(std::string fname, Matrix4f saved_pose); 
 
-
-    Matrix4f Optimization(const float* idepth, const float* d_gradientX, const float* d_gradientY); 
+    //main algorithms
+    Matrix4f visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur);
     Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY); 
     
 
