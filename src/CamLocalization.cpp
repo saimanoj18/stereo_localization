@@ -16,7 +16,10 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     //Set ref images
     ref_container = new float[width*height];
     igx_container = new float[width*height];
-    igy_container = new float[width*height];        
+    igy_container = new float[width*height];
+
+    //set initial pose
+    EST_pose = GT_pose;        
 
 }
 
@@ -35,9 +38,6 @@ void CamLocalization::Refresh()
         start_time = timestamp_now ();
 
         //prepar GT pose and map point clouds        
-//        int frame_half = (int) frameID/2;
-//        cout<<frame_half<<endl;
-//        GT_pose = GT_poses[frame_half];//ODO_pose;//
         pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
         MapPub.PublishMap(velo_raw,1);//publish velo raw
@@ -90,6 +90,7 @@ void CamLocalization::Refresh()
         float* depth_gradientX = new float[width*height]();
         float* depth_gradientY = new float[width*height]();
         float* depth_info = new float[width*height]();
+        float* image_info = new float[width*height]();
         pcl::PointCloud<pcl::PointXYZ>::Ptr image_cloud (new pcl::PointCloud<pcl::PointXYZ>);
         image_cloud->width    = width;
         image_cloud->height   = height;
@@ -108,10 +109,13 @@ void CamLocalization::Refresh()
             depth_gradientY[i] = dgy_image.at<float>(v,u)/32.0f;
 
             //depth info
-            float info_denom = depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i];
+            float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
             if (!isfinite(info_denom)) depth_info[i] = 0;
             else if (info_denom<0.001) depth_info[i] = 1000.0;
             else depth_info[i] = 10.0/(info_denom);
+            float igx = igx_image.at<float>(v,u)/32.0f;
+            float igy = igy_image.at<float>(v,u)/32.0f;
+            image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
 
 
             //cloud plot
@@ -126,8 +130,7 @@ void CamLocalization::Refresh()
 
         if(frameID>2){
             //tracking
-//            update_pose = Matrix4f::Identity();
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,depth_info,depth,left_scaled,update_pose);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose);
             cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
@@ -140,6 +143,7 @@ void CamLocalization::Refresh()
             cout<<optimized_T<<endl;
             pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
             EST_pose = EST_pose*optimized_T.inverse();
+//            update_pose = update_pose*optimized_T.inverse();
 
         }
 
@@ -347,30 +351,32 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
-        if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>0)
-        {
-            // SET PointXYZ VERTEX
-            g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
-            vPoint->setEstimate(pts);
-            vPoint->setId(index);
-            vPoint->setFixed(true);
-            optimizer.addVertex(vPoint);
-            
-            // Set Edges
-            g2o::EdgeSim3ProjectXYZ* e01 = new g2o::EdgeSim3ProjectXYZ();
-            e01->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
-            e01->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-            e01->setMeasurement(cur.at<float>(v,u));//(e1-e2);//(pts[i][2]);//
-            info << i_var[i_idx];
-//            info << 1000.0f;
-            e01->setInformation(info);
-            g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
-            rk1->setDelta(deltaHuber);
-            e01->setRobustKernel(rk1);
+        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<16*K(0,0)*0.54/100){
+            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
+            {
+                // SET PointXYZ VERTEX
+                g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+                vPoint->setEstimate(pts);
+                vPoint->setId(index);
+                vPoint->setFixed(true);
+                optimizer.addVertex(vPoint);
+                
+                // Set Edges
+                g2o::EdgeSim3ProjectXYZ* e01 = new g2o::EdgeSim3ProjectXYZ();
+                e01->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
+                e01->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                e01->setMeasurement(cur.at<float>(v,u));//(e1-e2);//(pts[i][2]);//
+                info << i_var[i_idx];
+    //            info << 1000.0f;
+                e01->setInformation(info);
+                g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
+                rk1->setDelta(deltaHuber);
+                e01->setRobustKernel(rk1);
 
-            optimizer.addEdge(e01);
+                optimizer.addEdge(e01);
 
-            index++;
+                index++;
+            }
         }
 
     }
@@ -480,7 +486,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult = optimizer.optimize(10);
+    int g2oresult = optimizer.optimize(20);
 
     // Recover optimized Sim3
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
