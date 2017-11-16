@@ -48,7 +48,7 @@ void CamLocalization::Refresh()
         
         /////////////////////////disparity map generation/////////////////////////////        
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
-        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,9);
+        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
