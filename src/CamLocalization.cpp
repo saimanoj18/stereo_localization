@@ -48,7 +48,7 @@ void CamLocalization::Refresh()
         
         /////////////////////////disparity map generation/////////////////////////////        
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
-        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*2,7);
+        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*5,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
@@ -486,7 +486,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult = optimizer.optimize(50);
+    int g2oresult = optimizer.optimize(100);
 
     // Recover optimized Sim3
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
