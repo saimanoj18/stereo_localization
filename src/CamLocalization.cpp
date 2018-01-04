@@ -3,10 +3,18 @@
 void CamLocalization::CamLocInitialize(cv::Mat image)
 {
     //Set matrices
-    float fx = 718.856*image.cols/ancient_width;
-    float fy = 718.856*image.cols/ancient_width;        
-    float cx = 607.1928*image.cols/ancient_width;
-    float cy = 185.2157*image.cols/ancient_width;
+//    float fx = 718.856*image.cols/ancient_width;
+//    float fy = 718.856*image.cols/ancient_width;        
+//    float cx = 607.1928*image.cols/ancient_width;
+//    float cy = 185.2157*image.cols/ancient_width;
+
+    float fx = P0(0,0)*image.cols/ancient_width;
+    float fy = P0(1,1)*image.cols/ancient_width;        
+    float cx = P0(0,2)*image.cols/ancient_width;
+    float cy = P0(1,2)*image.cols/ancient_width;
+    base_line = -P1(0,3)/P0(0,0);// because R = I;
+
+    cout<<base_line<<endl;
     K << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
     cout<<K<<endl;
     cout<<left_image.cols<<", "<<left_image.rows<<endl;
@@ -64,7 +72,7 @@ void CamLocalization::Refresh()
             //depth
             int16_t d = disp.at<int16_t>(v,u);
             if(d==0 || d!=d || d<100) d = 0;
-            depth[i] = 16*K(0,0)*0.54/((float)d);//0.54*K(0,0)/disp2.at<float>(v,u);
+            depth[i] = 16*K(0,0)*base_line/((float)d);//base_line*K(0,0)/disp2.at<float>(v,u);
 
             //depth image            
             depth_image.at<float>(v,u) = depth[i];
@@ -258,10 +266,11 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
     }
 }
 
-void CamLocalization::LeftImgCallback(const sensor_msgs::Image::ConstPtr& msg)
+void CamLocalization::LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg)
 {
     if(Left_received==false)
     {
+        //image processing
         cv_bridge::CvImagePtr cv_ptr;
         cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
         left_image = cv_ptr->image;       
@@ -270,14 +279,18 @@ void CamLocalization::LeftImgCallback(const sensor_msgs::Image::ConstPtr& msg)
         Left_received = true; 
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
         clahe->setClipLimit(5);
-        clahe->apply(left_image,left_image);         
+        clahe->apply(left_image,left_image);
+    
+        //camera info
+        P0 = Map<const MatrixXd>(&infomsg->P[0], 3, 4);         
     }
 }
 
-void CamLocalization::RightImgCallback(const sensor_msgs::Image::ConstPtr& msg)
+void CamLocalization::RightImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg)
 {
     if(Right_received==false)
     {
+        //image processing
         cv_bridge::CvImagePtr cv_ptr;
         cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
         right_image = cv_ptr->image;
@@ -285,18 +298,21 @@ void CamLocalization::RightImgCallback(const sensor_msgs::Image::ConstPtr& msg)
         Right_received = true; 
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
         clahe->setClipLimit(5);
-        clahe->apply(right_image,right_image);  
+        clahe->apply(right_image,right_image);
+
+        //camera info
+        P1 = Map<const MatrixXd>(&infomsg->P[0], 3, 4);   
     }
 }
 
-void CamLocalization::CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
-{
-    //K= Map<const Matrix3d>(&msg->K[0], 3, 3);
-    R_rect = Map<const Matrix3d>(&msg->R[0], 3, 3);
-    P_rect = Map<const MatrixXd>(&msg->P[0], 3, 4);
+//void CamLocalization::CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
+//{
+//    //K= Map<const Matrix3d>(&msg->K[0], 3, 3);
+//    R_rect = Map<const Matrix3d>(&msg->R[0], 3, 3);
+//    P_rect = Map<const MatrixXd>(&msg->P[0], 3, 4);
 
-//    cout<<"K Matrix: "<<K<<endl;
-}
+////    cout<<"K Matrix: "<<K<<endl;
+//}
 
 Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur, Matrix4f init_pose)
 {
@@ -351,7 +367,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
-        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<16*K(0,0)*0.54/100){
+        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<16*K(0,0)*base_line/100){
             if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
             {
                 // SET PointXYZ VERTEX
@@ -451,7 +467,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
         
         
-        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*0.54/100){
+        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*base_line/100){
                 if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>0)
                 {
                     // SET PointXYZ VERTEX

@@ -13,6 +13,7 @@
 
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
+#include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_listener.h>
@@ -58,11 +59,16 @@ public:
     fakeTimeStamp(0),frameID(0),scale(0.42553191),
     Velo_received(false),Left_received(false),Right_received(false)
     {
+        it = new image_transport::ImageTransport(nh);
+        
         //Set Subscriber
         sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
-        sub_leftimg = nh.subscribe("/kitti/left_image", 1, &CamLocalization::LeftImgCallback, this);
-        sub_rightimg = nh.subscribe("/kitti/right_image", 1, &CamLocalization::RightImgCallback, this);
-        sub_caminfo = nh.subscribe("/kitti/camera_gray_left/camera_info", 1, &CamLocalization::CamInfoCallback, this);
+        sub_leftimg = it->subscribeCamera("/kitti/left_image", 10,&CamLocalization::LeftImgCallback, this);
+        sub_rightimg = it->subscribeCamera("/kitti/right_image", 10,&CamLocalization::RightImgCallback, this);         
+        
+//        sub_leftimg = nh.subscribe("/kitti/left_image", 1, &CamLocalization::LeftImgCallback, this);
+//        sub_rightimg = nh.subscribe("/kitti/right_image", 1, &CamLocalization::RightImgCallback, this);
+//        sub_caminfo = nh.subscribe("/kitti/camera_gray_left/camera_info", 1, &CamLocalization::CamInfoCallback, this);
 
 
         EST_pose = Matrix4f::Identity();
@@ -71,6 +77,8 @@ public:
         update_pose(2,3) = 0.8;
         optimized_T = Matrix4f::Identity();
         GT_pose = Matrix4f::Identity();
+
+        base_line = 0.54;
 
 //        read_poses("poses.txt");
 //        cout<<"Pose loading is completed"<<endl;
@@ -94,10 +102,11 @@ private:
 
     //for ros subscription
     ros::NodeHandle nh;
+    image_transport::ImageTransport *it;
     ros::Subscriber sub_veloptcloud;
-    ros::Subscriber sub_leftimg;
-    ros::Subscriber sub_rightimg;
-    ros::Subscriber sub_caminfo;
+    image_transport::CameraSubscriber sub_leftimg;
+    image_transport::CameraSubscriber sub_rightimg;
+//    ros::Subscriber sub_caminfo;
     tf::TransformListener tlistener;
 
     //for broadcast    
@@ -124,9 +133,10 @@ private:
     Matrix4f cTv;
 
     //input camera info
-    Matrix<double,3,4> P_rect;
-    Matrix3d R_rect;
+    Matrix<double,3,4> P0;
+    Matrix<double,3,4> P1;
     Matrix3f K;
+    double base_line;
     int width;
     int height;
     int ancient_width;
@@ -144,8 +154,10 @@ private:
 
     //Callbacks
     void VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
-    void LeftImgCallback(const sensor_msgs::Image::ConstPtr& msg);
-    void RightImgCallback(const sensor_msgs::Image::ConstPtr& msg);
+//    void LeftImgCallback(const sensor_msgs::Image::ConstPtr& msg);
+//    void RightImgCallback(const sensor_msgs::Image::ConstPtr& msg);
+    void LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
+    void RightImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);
     bool Velo_received; 
     bool Left_received; 

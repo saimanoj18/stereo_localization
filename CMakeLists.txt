@@ -5,6 +5,7 @@ project(stereo_localization)
 
 find_package(catkin REQUIRED COMPONENTS 
 roscpp rospy std_msgs sensor_msgs
+image_transport
 cv_bridge
 pcl_conversions
 pcl_msgs
@@ -22,7 +23,7 @@ catkin_package(DEPENDS OpenCV Eigen3
                INCLUDE_DIRS include
                LIBRARIES stereo_localization
                CATKIN_DEPENDS roscpp  
-               std_msgs sensor_msgs geometry_msgs
+               std_msgs sensor_msgs image_transport geometry_msgs
                cv_bridge
                pcl_ros pcl_conversions pcl_msgs tf tf_conversions)
 
