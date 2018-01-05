@@ -14,9 +14,10 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     float cy = P0(1,2)*image.cols/ancient_width;
     base_line = -P1(0,3)/P0(0,0);// because R = I;
 
-    cout<<base_line<<endl;
+    cout<<"base_line: "<<base_line<<endl;
     K << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
-    cout<<K<<endl;
+    cout<<"K_mat: "<<K<<endl;
+    cout<<"extrinsic Camera to Velodyne: "<<cTv<<endl;
     cout<<left_image.cols<<", "<<left_image.rows<<endl;
     width = left_image.cols;
     height = left_image.rows;
@@ -63,6 +64,7 @@ void CamLocalization::Refresh()
         /////////////////////////depth image generation/////////////////////////////
         float* depth = new float[width*height]();
         cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+        float d_var = 0.1;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
@@ -71,8 +73,10 @@ void CamLocalization::Refresh()
             
             //depth
             int16_t d = disp.at<int16_t>(v,u);
-            if(d==0 || d!=d || d<100) d = 0;
-            depth[i] = 16*K(0,0)*base_line/((float)d);//base_line*K(0,0)/disp2.at<float>(v,u);
+            if(d==0 || d!=d || d<100) d = 0; //
+            depth[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );//base_line*K(0,0)/disp2.at<float>(v,u);
+
+//            if(depth[i]>30.0)depth[i]= -1.0;
 
             //depth image            
             depth_image.at<float>(v,u) = depth[i];
@@ -120,7 +124,7 @@ void CamLocalization::Refresh()
             float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
             if (!isfinite(info_denom)) depth_info[i] = 0;
             else if (info_denom<0.001) depth_info[i] = 1000.0;
-            else depth_info[i] = 10.0/(info_denom);
+            else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
             image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
@@ -367,7 +371,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
-        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<16*K(0,0)*base_line/100){
+        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<30.0){//pts[2]<16*K(0,0)*base_line/100){
             if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
             {
                 // SET PointXYZ VERTEX
@@ -383,7 +387,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
                 e01->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                 e01->setMeasurement(cur.at<float>(v,u));//(e1-e2);//(pts[i][2]);//
                 info << i_var[i_idx];
-    //            info << 1000.0f;
+//                info << 1000.0f;
                 e01->setInformation(info);
                 g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
                 rk1->setDelta(deltaHuber);
@@ -467,7 +471,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
         
         
-        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*base_line/100){
+        if ( pts[i][2]>0.0f && pts[i][2]<30.0){//pts[i][2]<16*K(0,0)*base_line/100){
                 if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>0)
                 {
                     // SET PointXYZ VERTEX
