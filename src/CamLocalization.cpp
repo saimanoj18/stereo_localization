@@ -49,8 +49,6 @@ void CamLocalization::Refresh()
         //prepar GT pose and map point clouds        
         pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
-        MapPub.PublishMap(velo_raw,1);//publish velo raw
-        MapPub.PublishPose(GT_pose,1);//publish GT pose
 
         //initialize 
         if(frameID == 0)CamLocInitialize(right_image);
@@ -147,18 +145,40 @@ void CamLocalization::Refresh()
 
             //prepare EST_pose, velo_cloud
             EST_pose = EST_pose*update_pose;
-            pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
-
+            pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree (128.0f);
+            octree.setInputCloud (velo_raw);
+            octree.addPointsFromInputCloud ();
+            pcl::PointXYZ searchPoint;
+            searchPoint.x = EST_pose(0,3);
+            searchPoint.y = EST_pose(1,3);
+            searchPoint.z = EST_pose(2,3);
+            std::vector<int> pointIdxRadiusSearch;
+            std::vector<float> pointRadiusSquaredDistance;
+            octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+            cloud->width = pointIdxRadiusSearch.size ();
+            cloud->height = 1;
+            cloud->points.resize (cloud->width * cloud->height);
+            int count = 0;
+            for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
+            {
+                cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
+                cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
+                cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
+                count++;
+            }
+            pcl::transformPointCloud (*cloud, *velo_cloud, EST_pose.inverse());//velo_raw
+           
             //localization
             optimized_T = Matrix4f::Identity();
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY);
             cout<<optimized_T<<endl;
-            pcl::transformPointCloud (*velo_cloud, *velo_cloud, optimized_T);
             EST_pose = EST_pose*optimized_T.inverse();
-//            update_pose = update_pose*optimized_T.inverse();
 
         }
 
+        MapPub.PublishMap(velo_raw,1);//publish velo raw
+        MapPub.PublishPose(GT_pose,1);//publish GT pose
         MapPub.PublishPose(EST_pose,3);
         pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose);
         MapPub.PublishMap(image_cloud,3);
