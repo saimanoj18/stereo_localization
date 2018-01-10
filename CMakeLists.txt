@@ -56,23 +56,23 @@ set (SRC
   src/main.cpp
   src/CamLocalization.cpp
   src/MapPublisher.cpp
-  src/DataStructures/Frame.cpp
-  src/DataStructures/FramePoseStruct.cpp
-  src/DataStructures/FrameMemory.cpp
-  src/DepthEstimation/DepthMap.cpp
-  src/DepthEstimation/DepthMapPixelHypothesis.cpp
-  src/util/globalFuncs.cpp
-  src/util/SophusUtil.cpp
-  src/util/settings.cpp
-  src/ImageDisplay_OpenCV.cpp
-  #src/GlobalMapping/FabMap.cpp
-  #src/GlobalMapping/KeyFrameGraph.cpp
-  #src/GlobalMapping/g2oTypeSim3Sophus.cpp
-  #src/GlobalMapping/TrackableKeyFrameSearch.cpp
-  src/Tracking/Relocalizer.cpp
-  src/Tracking/SE3Tracker.cpp
-  src/Tracking/Sim3Tracker.cpp
-  src/Tracking/TrackingReference.cpp
+#  src/DataStructures/Frame.cpp
+#  src/DataStructures/FramePoseStruct.cpp
+#  src/DataStructures/FrameMemory.cpp
+#  src/DepthEstimation/DepthMap.cpp
+#  src/DepthEstimation/DepthMapPixelHypothesis.cpp
+#  src/util/globalFuncs.cpp
+#  src/util/SophusUtil.cpp
+#  src/util/settings.cpp
+#  src/ImageDisplay_OpenCV.cpp
+#  #src/GlobalMapping/FabMap.cpp
+#  #src/GlobalMapping/KeyFrameGraph.cpp
+#  #src/GlobalMapping/g2oTypeSim3Sophus.cpp
+#  #src/GlobalMapping/TrackableKeyFrameSearch.cpp
+#  src/Tracking/Relocalizer.cpp
+#  src/Tracking/SE3Tracker.cpp
+#  src/Tracking/Sim3Tracker.cpp
+#  src/Tracking/TrackingReference.cpp
 )
 
 #link_directories(${G2O_LIBRARY_DIRS})

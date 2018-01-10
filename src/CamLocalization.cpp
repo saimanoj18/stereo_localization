@@ -64,7 +64,7 @@ void CamLocalization::Refresh()
         /////////////////////////depth image generation/////////////////////////////
         float* depth = new float[width*height]();
         cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
-        float d_var = 0.1;
+        float d_var = 0.01;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
@@ -420,7 +420,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
 
     //g2o optimization 
 //    cout<<"g2o Optimization"<<endl;
-    const float deltaHuber = sqrt(10);//10 may be the best choice
+    const float deltaHuber = sqrt(1);//10 may be the best choice
 
     //solver initialization
     g2o::SparseOptimizer optimizer;
