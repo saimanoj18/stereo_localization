@@ -32,9 +32,35 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
     if (mode ==1)
     {
+        //load velo_raw from .las
+        char filename[1000];
+        sprintf(filename, "/media/youngji/storagedevice/urban05_sick_pointcloud.las");
+        std::ifstream ifs;
+        if (!liblas::Open(ifs, filename))
+        {
+            throw std::runtime_error(std::string("Can not open ") + filename);
+        }
+
+        liblas::Reader reader(ifs);
+        liblas::Header const& h = reader.GetHeader();        
+        velo_raw->width = h.GetPointRecordsCount();
+        velo_raw->height = 1;
+        velo_raw->points.resize (velo_raw->width * velo_raw->height);
+        int count = 0;
+        while (reader.ReadNextPoint())
+        {        
+            liblas::Point const& p = reader.GetPoint();
+
+            velo_raw->points[count].x = p[0];
+            velo_raw->points[count].y = p[1];
+            velo_raw->points[count].z = p[2];
+            count++;
+        }
+
         octree.setInputCloud (velo_raw);
         octree.addPointsFromInputCloud ();
 
+        MapPub.PublishMap(velo_raw,1);
     }        
 
 }
@@ -48,6 +74,7 @@ void CamLocalization::Refresh()
         pcl_ros::transformAsMatrix (ctv, cTv); 
     }
     
+//    if(mode ==1) Velo_received = true;
 
     if(Velo_received && Left_received && Right_received)
     {
@@ -185,8 +212,8 @@ void CamLocalization::Refresh()
 
         }
 
-        MapPub.PublishMap(velo_raw,1);//publish velo raw
-        MapPub.PublishPose(GT_pose,1);//publish GT pose
+        if(mode == 0)MapPub.PublishMap(velo_raw,1);//publish velo raw
+        if(mode == 0)MapPub.PublishPose(GT_pose,1);//publish GT pose
         MapPub.PublishPose(EST_pose,3);
         pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose);
         MapPub.PublishMap(image_cloud,3);
@@ -198,7 +225,7 @@ void CamLocalization::Refresh()
 
         //save poses 
         write_poses("EST_poses.txt", EST_pose);
-        write_poses("GT_poses.txt", GT_pose);
+        if(mode == 0)write_poses("GT_poses.txt", GT_pose);
 
         
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));

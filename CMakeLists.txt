@@ -15,11 +15,12 @@ tf_conversions)
 
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(libLAS REQUIRED)
 #find_package(G2O REQUIRED)
 #find_package(PCL 1.7 REQUIRED)
 
 ## Declare a catkin package
-catkin_package(DEPENDS OpenCV Eigen3
+catkin_package(DEPENDS OpenCV Eigen3 libLAS
                INCLUDE_DIRS include
                LIBRARIES stereo_localization
                CATKIN_DEPENDS roscpp  
@@ -45,6 +46,7 @@ include_directories(
     include
     ${catkin_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
+    ${libLAS_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
@@ -81,6 +83,7 @@ add_executable(stereo_localization ${SRC})
 target_link_libraries(stereo_localization 
                       ${catkin_LIBRARIES} 
                       ${OpenCV_LIBS}
+                      ${libLAS_LIBRARIES}
 #                      ${G2O_LIBRARIES}
                       ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so)
 
