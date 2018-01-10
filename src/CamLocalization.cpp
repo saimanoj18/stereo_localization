@@ -28,7 +28,14 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     igy_container = new float[width*height];
 
     //set initial pose
-    EST_pose = GT_pose;        
+    EST_pose = GT_pose;
+
+    if (mode ==1)
+    {
+        octree.setInputCloud (velo_raw);
+        octree.addPointsFromInputCloud ();
+
+    }        
 
 }
 
@@ -47,7 +54,7 @@ void CamLocalization::Refresh()
         start_time = timestamp_now ();
 
         //prepar GT pose and map point clouds        
-        pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
+        if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
         //initialize 
@@ -145,29 +152,30 @@ void CamLocalization::Refresh()
 
             //prepare EST_pose, velo_cloud
             EST_pose = EST_pose*update_pose;
-            pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree (128.0f);
-            octree.setInputCloud (velo_raw);
-            octree.addPointsFromInputCloud ();
-            pcl::PointXYZ searchPoint;
-            searchPoint.x = EST_pose(0,3);
-            searchPoint.y = EST_pose(1,3);
-            searchPoint.z = EST_pose(2,3);
-            std::vector<int> pointIdxRadiusSearch;
-            std::vector<float> pointRadiusSquaredDistance;
-            octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
-            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-            cloud->width = pointIdxRadiusSearch.size ();
-            cloud->height = 1;
-            cloud->points.resize (cloud->width * cloud->height);
-            int count = 0;
-            for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
+            if (mode == 0)pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
+            else
             {
-                cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
-                cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
-                cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
-                count++;
+                pcl::PointXYZ searchPoint;
+                searchPoint.x = EST_pose(0,3);
+                searchPoint.y = EST_pose(1,3);
+                searchPoint.z = EST_pose(2,3);
+                std::vector<int> pointIdxRadiusSearch;
+                std::vector<float> pointRadiusSquaredDistance;
+                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+                cloud->width = pointIdxRadiusSearch.size ();
+                cloud->height = 1;
+                cloud->points.resize (cloud->width * cloud->height);
+                int count = 0;
+                for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
+                {
+                    cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
+                    cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
+                    cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
+                    count++;
+                }
+                pcl::transformPointCloud (*cloud, *velo_cloud, EST_pose.inverse());
             }
-            pcl::transformPointCloud (*cloud, *velo_cloud, EST_pose.inverse());//velo_raw
            
             //localization
             optimized_T = Matrix4f::Identity();
@@ -191,12 +199,11 @@ void CamLocalization::Refresh()
         //save poses 
         write_poses("EST_poses.txt", EST_pose);
         write_poses("GT_poses.txt", GT_pose);
-//        write_poses("ODO_poses.txt", ODO_pose);
 
         
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
-        Velo_received = false;
+        if(mode == 0)Velo_received = false;
         Left_received = false;
         Right_received = false;
         delete [] depth_gradientX;

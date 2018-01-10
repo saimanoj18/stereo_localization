@@ -56,8 +56,8 @@ class CamLocalization
 public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),
-    fakeTimeStamp(0),frameID(0),scale(0.42553191),
-    Velo_received(false),Left_received(false),Right_received(false)
+    fakeTimeStamp(0),frameID(0),scale(0.42553191),mode(0),
+    Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
         
@@ -115,6 +115,7 @@ private:
     //input data
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
+    pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
     cv::Mat left_image;
     cv::Mat right_image;
     cv::Mat ref_image;
@@ -162,6 +163,7 @@ private:
     bool Velo_received; 
     bool Left_received; 
     bool Right_received;
+    int8_t mode;
     void read_poses(std::string fname); 
     void write_poses(std::string fname, Matrix4f saved_pose); 
 
