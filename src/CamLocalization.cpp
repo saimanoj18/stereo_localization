@@ -47,20 +47,24 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         velo_raw->height = 1;
         velo_raw->points.resize (velo_raw->width * velo_raw->height);
         int count = 0;
+        float ox ,oy, oz;
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
-
-            velo_raw->points[count].x = p[0];
-            velo_raw->points[count].y = p[1];
-            velo_raw->points[count].z = p[2];
+            if(count == 0)
+            {
+                ox = p[0];
+                oy = p[1];
+                oz = p[2];
+            }
+            velo_raw->points[count].x = p[0]-ox;
+            velo_raw->points[count].y = p[1]-oy;
+            velo_raw->points[count].z = p[2]-oz;
             count++;
         }
-
+        pcl::transformPointCloud (*velo_raw, *velo_raw, cTv);
         octree.setInputCloud (velo_raw);
         octree.addPointsFromInputCloud ();
-
-        MapPub.PublishMap(velo_raw,1);
     }        
 
 }
@@ -96,7 +100,7 @@ void CamLocalization::Refresh()
         /////////////////////////depth image generation/////////////////////////////
         float* depth = new float[width*height]();
         cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
-        float d_var = 0.01;
+        float d_var = 0.1;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
@@ -140,6 +144,8 @@ void CamLocalization::Refresh()
         image_cloud->height   = height;
         image_cloud->is_dense = false;
         image_cloud->points.resize (image_cloud->width * image_cloud->height);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         
         for(size_t i=0; i<width*height;i++)
         {
@@ -189,7 +195,7 @@ void CamLocalization::Refresh()
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
                 octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
-                pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+
                 cloud->width = pointIdxRadiusSearch.size ();
                 cloud->height = 1;
                 cloud->points.resize (cloud->width * cloud->height);
@@ -213,6 +219,7 @@ void CamLocalization::Refresh()
         }
 
         if(mode == 0)MapPub.PublishMap(velo_raw,1);//publish velo raw
+        else MapPub.PublishMap(cloud,1);//publish velo raw
         if(mode == 0)MapPub.PublishPose(GT_pose,1);//publish GT pose
         MapPub.PublishPose(EST_pose,3);
         pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose);
