@@ -53,9 +53,18 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
             liblas::Point const& p = reader.GetPoint();
             if(count == 0)
             {
-                ox = p[0];
-                oy = p[1];
-                oz = p[2];
+                ifstream file("/media/youngji/storagedevice/Initial_pose.txt");
+                string s;
+                getline(file, s, ' ');
+                ox = atof(s.c_str());
+                getline(file, s, ' ');
+                oy = atof(s.c_str());
+                getline(file, s, ' ');
+                oz = atof(s.c_str());
+                file.close();
+//                ox = p[0];
+//                oy = p[1];
+//                oz = p[2];
             }
             velo_raw->points[count].x = p[0]-ox;
             velo_raw->points[count].y = p[1]-oy;
