@@ -17,6 +17,8 @@
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_listener.h>
+#include <tf_conversions/tf_eigen.h>
+
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -58,7 +60,7 @@ class CamLocalization
 public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),
-    fakeTimeStamp(0),frameID(0),scale(0.42553191),mode(0),
+    fakeTimeStamp(0),frameID(0),mode(1),scale(1), //scale(0.42553191)
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);

@@ -78,7 +78,7 @@ void CamLocalization::Refresh()
         pcl_ros::transformAsMatrix (ctv, cTv); 
     }
     
-//    if(mode ==1) Velo_received = true;
+    if(mode ==1) Velo_received = true;
 
     if(Velo_received && Left_received && Right_received)
     {
@@ -86,7 +86,7 @@ void CamLocalization::Refresh()
 
         //prepar GT pose and map point clouds        
         if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
-        mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
+//        mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
         //initialize 
         if(frameID == 0)CamLocInitialize(right_image);
@@ -234,7 +234,11 @@ void CamLocalization::Refresh()
         write_poses("EST_poses.txt", EST_pose);
         if(mode == 0)write_poses("GT_poses.txt", GT_pose);
 
-        
+        if(mode == 1){
+            Eigen::Affine3d e;
+            e.matrix() = EST_pose.matrix().cast<double>();
+            tf::transformEigenToTF(e, wtb);
+        }     
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
         if(mode == 0)Velo_received = false;
