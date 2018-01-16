@@ -30,6 +30,9 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     //set initial pose
     EST_pose = GT_pose;
 
+    //set matching thres
+    matching_thres = K(0,0)*base_line*( 1.0/(100.0/16.0) + 0.01/((float)(100.0/16.0)*(100.0/16.0)*(100.0/16.0)) );
+
     if (mode ==1)
     {
         //load velo_raw from .las
@@ -449,8 +452,8 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
-        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
-            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
+        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<matching_thres){ //pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
+            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>200)
             {
                 // SET PointXYZ VERTEX
                 g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
@@ -549,7 +552,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
         
         
-        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*base_line/100){//pts[i][2]<30.0){//
+        if ( pts[i][2]>0.0f && pts[i][2]<matching_thres){ //pts[i][2]<16*K(0,0)*base_line/100){//pts[i][2]<30.0){//
                 if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>0)
                 {
                     // SET PointXYZ VERTEX

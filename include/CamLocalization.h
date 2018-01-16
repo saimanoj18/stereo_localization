@@ -148,6 +148,7 @@ private:
     int height;
     int ancient_width;
     double scale;
+    float matching_thres;
 
     //result data
     Matrix4f ODO_pose;
