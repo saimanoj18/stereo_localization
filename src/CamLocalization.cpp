@@ -109,7 +109,7 @@ void CamLocalization::Refresh()
         /////////////////////////depth image generation/////////////////////////////
         float* depth = new float[width*height]();
         cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
-        float d_var = 0.1;
+        float d_var = 0.01;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
@@ -134,6 +134,10 @@ void CamLocalization::Refresh()
             }
 
         }
+
+//        cv::imshow("depth_image", depth_image);
+//        cv::waitKey(3);
+//        cv::moveWindow("depth_image", 50,20);
 
         /////////////////////////depth gradient generation/////////////////////////////
         cv::Mat dgx_image, dgy_image; // = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_8UC3);
@@ -203,7 +207,7 @@ void CamLocalization::Refresh()
                 searchPoint.z = EST_pose(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 cloud->width = pointIdxRadiusSearch.size ();
                 cloud->height = 1;
@@ -445,7 +449,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
-        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<30.0){//pts[2]<16*K(0,0)*base_line/100){
+        if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
             if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
             {
                 // SET PointXYZ VERTEX
@@ -494,7 +498,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
 
     //g2o optimization 
 //    cout<<"g2o Optimization"<<endl;
-    const float deltaHuber = sqrt(1);//10 may be the best choice
+    const float deltaHuber = sqrt(10);//10 may be the best choice
 
     //solver initialization
     g2o::SparseOptimizer optimizer;
@@ -545,7 +549,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
         
         
-        if ( pts[i][2]>0.0f && pts[i][2]<30.0){//pts[i][2]<16*K(0,0)*base_line/100){
+        if ( pts[i][2]>0.0f && pts[i][2]<16*K(0,0)*base_line/100){//pts[i][2]<30.0){//
                 if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>0)
                 {
                     // SET PointXYZ VERTEX

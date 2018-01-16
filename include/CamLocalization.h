@@ -60,7 +60,9 @@ class CamLocalization
 public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),
-    fakeTimeStamp(0),frameID(0),mode(1),scale(1.0),//scale(0.42553191),
+    fakeTimeStamp(0),frameID(0),
+    mode(0), scale(0.42553191),
+//    mode(1),scale(0.96416938),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
