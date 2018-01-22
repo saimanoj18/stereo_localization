@@ -127,7 +127,7 @@ void CamLocalization::Refresh()
             
             //depth
             int16_t d = disp.at<int16_t>(v,u);
-            if(d==0 || d!=d || d<100) d = 0; //
+            if(d==0 || d!=d || d<10) d = 0; //
             depth[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );//base_line*K(0,0)/disp2.at<float>(v,u);
 
 //            if(depth[i]>30.0)depth[i]= -1.0;
@@ -238,7 +238,7 @@ void CamLocalization::Refresh()
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 
-            if (mode == 0)debugImage(depth_image);
+            debugImage(depth_image);//save debug images
 
         }
 
@@ -639,39 +639,44 @@ void CamLocalization::debugImage(cv::Mat& depth_image)
 //            cout<<depth_image.at<float>(v,u)<<", "<<depth.at<float>(v,u)<<endl;
         }
     }
-    imwrite("lidar_intensity.jpg", frame);
-    imwrite("lidar_depth.jpg", depth);
-    imwrite("image_intensity.jpg", left_image);
-//    imwrite("image_depth.jpg", depth_image);
 
     cv::Mat depth_image_filtered = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
     cv::Mat intensity_residual = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
     cv::Mat depth_residual = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
 
-    for(size_t i=0; i<width*height;i++)
+    for(size_t i=0; i<numpts;i++)
     {
-
-        int u, v;
-        u = i%width;
-        v = i/width;
-        float d_float;
-        d_float = depth_image.at<float>(v,u);
-        if(d_float>0 && d_float==d_float && d_float<100)
-        {
-            depth_image_filtered.at<float>(v,u) = d_float;
-        }
-        else
-        {
-            d_float = 0;
-        }
-        if(velo_cloud->points[i].z>0)
-        {
-            depth_residual.at<float>(v,u) = depth.at<float>(v,u) - d_float;
-            intensity_residual.at<float>(v,u) = (float)frame.at<int8_t>(v,u) - (float)left_image.at<int8_t>(v,u);
+        if (velo_cloud->points[i].z>-1.0){
+            Vector3d point(velo_cloud->points[i].x, velo_cloud->points[i].y, velo_cloud->points[i].z);
+            Vector2d uv = ProjectTo2D(point);
+            int u = (int) uv(0);
+            int v = (int) uv(1);
+            if (u<left_image.cols && u>=0 && v<left_image.rows && v>=0 ){
+                float d_float;
+                d_float = depth_image.at<float>(v,u);
+                if(d_float>0 && d_float==d_float && d_float<100)
+                {
+                    depth_image_filtered.at<float>(v,u) = d_float;
+                }
+                else
+                {
+                    d_float = 0;
+                }
+                depth_residual.at<float>(v,u) = depth.at<float>(v,u) - d_float;
+                intensity_residual.at<float>(v,u) = (float)frame.at<int8_t>(v,u) - (float)left_image.at<int8_t>(v,u);
+            }
         }
     }     
 
-    imwrite("image_depth.jpg", depth_image_filtered);
-    imwrite("intensity_residual.jpg", intensity_residual);
-    imwrite("depth_residual.jpg", depth_residual);      
+
+    
+    save_colormap(frame,"lidar_intensity.jpg",0,255);
+    save_colormap(left_image,"image_intensity.jpg",0,255);
+    save_colormap(depth,"lidar_depth.jpg",0,30);
+    save_colormap(depth_image, "image_depth.jpg",0,30);
+    save_colormap(intensity_residual, "intensity_residual.jpg",0,255);
+    save_colormap(depth_residual, "depth_residual.jpg",0,30);
+   
 }
+
+

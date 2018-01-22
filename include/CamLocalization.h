@@ -61,7 +61,7 @@ public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),
     fakeTimeStamp(0),frameID(0),
-    mode(0), scale(0.42553191),
+    mode(0),scale(0.7),//scale(0.42553191),
 //    mode(1),scale(1.0),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
@@ -245,6 +245,17 @@ private:
         return cv::Vec3b(255-rc,255-gc,255-bc);
     }
 
+    void save_colormap(cv::Mat& img, std::string img_name, double min, double max)
+    {
+//        double min;
+//        double max;
+//        cv::minMaxIdx(img, &min, &max);
+        cv::Mat adjMap;
+        img.convertTo(adjMap,CV_8UC1, 255 / (max-min), -min); 
+        cv::Mat falseColorsMap;
+        applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_JET);
+        imwrite(img_name, falseColorsMap);
+    }
 
     //MapPublisher
     MapPublisher MapPub;
