@@ -59,10 +59,10 @@ class CamLocalization
 {
 public:
     CamLocalization():
-    velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),
+    velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),
     fakeTimeStamp(0),frameID(0),
     mode(0), scale(0.42553191),
-//    mode(1),scale(0.96416938),//
+//    mode(1),scale(1.0),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -121,6 +121,7 @@ private:
     //input data
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr velo_xyzi;
     pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
     cv::Mat left_image;
     cv::Mat right_image;
@@ -178,6 +179,7 @@ private:
     Matrix4f visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4f init_pose);
     Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY); 
     
+    void debugImage(cv::Mat& depth_image);
 
     int64_t
     timestamp_now (void)

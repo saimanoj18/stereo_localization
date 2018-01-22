@@ -56,7 +56,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
             liblas::Point const& p = reader.GetPoint();
             if(count == 0)
             {
-                ifstream file("/media/youngji/storagedevice/Initial_pose.txt");
+                //ifstream file("/media/youngji/storagedevice/Initial_pose.txt");
+                ifstream file("/media/youngji/storagedevice/naver_data/20171120_kitti/sequences/11/Initial_pose.txt");
                 string s;
                 getline(file, s, ' ');
                 ox = atof(s.c_str());
@@ -92,6 +93,8 @@ void CamLocalization::Refresh()
     
     if(mode ==1) Velo_received = true;
 
+//    if(mode == 1)MapPub.PublishMap(velo_raw,2);//publish velo raw
+
     if(Velo_received && Left_received && Right_received)
     {
         start_time = timestamp_now ();
@@ -105,13 +108,16 @@ void CamLocalization::Refresh()
         
         /////////////////////////disparity map generation/////////////////////////////        
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
-        cv::Ptr<cv::StereoSGBM> sbm = cv::StereoSGBM::create(0,16*5,7);
+        cv::Ptr<cv::StereoSGBM> sbm;
+        if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
+        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*11,17);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
         /////////////////////////depth image generation/////////////////////////////
         float* depth = new float[width*height]();
-        cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+        //cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+        cv::Mat depth_image = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
         float d_var = 0.01;
         for(size_t i=0; i<width*height;i++)
         {
@@ -232,6 +238,8 @@ void CamLocalization::Refresh()
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 
+            if (mode == 0)debugImage(depth_image);
+
         }
 
         if(mode == 0)MapPub.PublishMap(velo_raw,1);//publish velo raw
@@ -328,7 +336,8 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
     {
         pcl::PCLPointCloud2 pcl_pc2;
         pcl_conversions::toPCL(*msg,pcl_pc2);
-        pcl::fromPCLPointCloud2(pcl_pc2,*velo_cloud);       
+        pcl::fromPCLPointCloud2(pcl_pc2,*velo_cloud);
+        pcl::fromPCLPointCloud2(pcl_pc2,*velo_xyzi);       
         if (velo_cloud->points.size()>0){
 
             bool success;
@@ -598,4 +607,71 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     return result_mat;
 
     
+}
+
+void CamLocalization::debugImage(cv::Mat& depth_image)
+{
+    //generate lidar intensity image 
+    int numpts = velo_cloud->points.size();    
+    cv::Mat frame = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_8UC1);
+    cv::Mat depth = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+    for(size_t i=0; i<numpts;i++)
+    {
+        if (velo_cloud->points[i].z>-1.0){
+            // Set frame and depth image
+            Vector3d point(velo_cloud->points[i].x, velo_cloud->points[i].y, velo_cloud->points[i].z);
+            Vector2d uv = ProjectTo2D(point);
+            int u = (int) uv(0);
+            int v = (int) uv(1);
+            
+            if (u<left_image.cols && u>=0 && v<left_image.rows && v>=0 ){
+                if (depth.at<float>(v,u)>0){
+                    if(depth.at<float>(v,u)>velo_cloud->points[i].z){
+                        depth.at<float>(v,u) = velo_cloud->points[i].z;
+                        frame.at<int8_t>(v,u) = (int)255.0f*velo_xyzi->points[i].intensity;
+                    }
+                }
+                else{
+                    depth.at<float>(v,u) = velo_cloud->points[i].z;
+                    frame.at<int8_t>(v,u) = (int)255.0f*velo_xyzi->points[i].intensity;
+                }
+            }
+//            cout<<depth_image.at<float>(v,u)<<", "<<depth.at<float>(v,u)<<endl;
+        }
+    }
+    imwrite("lidar_intensity.jpg", frame);
+    imwrite("lidar_depth.jpg", depth);
+    imwrite("image_intensity.jpg", left_image);
+//    imwrite("image_depth.jpg", depth_image);
+
+    cv::Mat depth_image_filtered = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+    cv::Mat intensity_residual = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+    cv::Mat depth_residual = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+
+    for(size_t i=0; i<width*height;i++)
+    {
+
+        int u, v;
+        u = i%width;
+        v = i/width;
+        float d_float;
+        d_float = depth_image.at<float>(v,u);
+        if(d_float>0 && d_float==d_float && d_float<100)
+        {
+            depth_image_filtered.at<float>(v,u) = d_float;
+        }
+        else
+        {
+            d_float = 0;
+        }
+        if(velo_cloud->points[i].z>0)
+        {
+            depth_residual.at<float>(v,u) = depth.at<float>(v,u) - d_float;
+            intensity_residual.at<float>(v,u) = (float)frame.at<int8_t>(v,u) - (float)left_image.at<int8_t>(v,u);
+        }
+    }     
+
+    imwrite("image_depth.jpg", depth_image_filtered);
+    imwrite("intensity_residual.jpg", intensity_residual);
+    imwrite("depth_residual.jpg", depth_residual);      
 }
