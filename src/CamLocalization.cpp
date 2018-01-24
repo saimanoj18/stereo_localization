@@ -31,7 +31,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     EST_pose = GT_pose;
 
     //set matching thres
-    matching_thres = K(0,0)*base_line*( 1.0/(100.0/16.0) + 0.01/((float)(100.0/16.0)*(100.0/16.0)*(100.0/16.0)) );
+    d_var = 0.1;
+    matching_thres = K(0,0)*base_line*( 1.0/(100.0/16.0) + d_var/((float)(100.0/16.0)*(100.0/16.0)*(100.0/16.0)) );
 
     if (mode ==1)
     {
@@ -110,7 +111,7 @@ void CamLocalization::Refresh()
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
         if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
-        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*11,17);
+        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*5,21);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
@@ -118,7 +119,7 @@ void CamLocalization::Refresh()
         float* depth = new float[width*height]();
         //cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
         cv::Mat depth_image = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
-        float d_var = 0.01;
+//        float d_var = 0.01;
         for(size_t i=0; i<width*height;i++)
         {
             int u, v;
@@ -127,7 +128,7 @@ void CamLocalization::Refresh()
             
             //depth
             int16_t d = disp.at<int16_t>(v,u);
-            if(d==0 || d!=d || d<10) d = 0; //
+            if(d==0 || d!=d || d<100) d = 0; //
             depth[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );//base_line*K(0,0)/disp2.at<float>(v,u);
 
 //            if(depth[i]>30.0)depth[i]= -1.0;
@@ -238,7 +239,8 @@ void CamLocalization::Refresh()
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 
-            debugImage(depth_image);//save debug images
+//            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
+//            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
 
         }
 
@@ -609,7 +611,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     
 }
 
-void CamLocalization::debugImage(cv::Mat& depth_image)
+void CamLocalization::debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image, const float* depth_info)
 {
     //generate lidar intensity image 
     int numpts = velo_cloud->points.size();    
@@ -635,12 +637,49 @@ void CamLocalization::debugImage(cv::Mat& depth_image)
                     depth.at<float>(v,u) = velo_cloud->points[i].z;
                     frame.at<int8_t>(v,u) = (int)255.0f*velo_xyzi->points[i].intensity;
                 }
+                
+                
             }
-//            cout<<depth_image.at<float>(v,u)<<", "<<depth.at<float>(v,u)<<endl;
+            
         }
+        
     }
 
-    cv::Mat depth_image_filtered = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+
+    cv::Mat mag = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+    cv::Mat dir = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+    cv::Mat info = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+    float delta = 10.0;
+    float max_info = 0;
+    for(size_t i=0; i<width*height;i++)
+    {
+        int u, v;
+        u = i%width;
+        v = i/width;
+
+        float v1 = 0 ,v2 = 0;
+        if(isfinite(dgx_image.at<float>(v,u)))
+        {
+            if(dgx_image.at<float>(v,u)>delta)v1 = delta;
+            else if(dgx_image.at<float>(v,u)<-delta)v1 = -delta;
+            else v1 = dgx_image.at<float>(v,u);
+        }
+        if(isfinite(dgy_image.at<float>(v,u)))
+        {
+            if(dgy_image.at<float>(v,u)>delta)v2 = delta;
+            else if(dgy_image.at<float>(v,u)<-delta)v2 = -delta;
+            else v2 = dgy_image.at<float>(v,u);
+        }
+        mag.at<float>(v,u) = sqrt(v1*v1+v2*v2);
+        dir.at<float>(v,u) = atan2(v2,v1);
+        float tmp = dir.at<float>(v,u); 
+        if(tmp<0)dir.at<float>(v,u) = tmp+2*M_PI;
+
+        info.at<float>(v,u) = depth_info[i];
+        if(depth_info[i]>max_info)max_info = depth_info[i];
+    }
+    
+
     cv::Mat intensity_residual = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
     cv::Mat depth_residual = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
 
@@ -656,19 +695,18 @@ void CamLocalization::debugImage(cv::Mat& depth_image)
                 d_float = depth_image.at<float>(v,u);
                 if(d_float>0 && d_float==d_float && d_float<100)
                 {
-                    depth_image_filtered.at<float>(v,u) = d_float;
                 }
                 else
                 {
                     d_float = 0;
                 }
-                depth_residual.at<float>(v,u) = depth.at<float>(v,u) - d_float;
-                intensity_residual.at<float>(v,u) = (float)frame.at<int8_t>(v,u) - (float)left_image.at<int8_t>(v,u);
+                depth_residual.at<float>(v,u) = abs(depth.at<float>(v,u) - d_float);
+                intensity_residual.at<float>(v,u) = abs((float)frame.at<int8_t>(v,u) - (float)left_image.at<int8_t>(v,u));
             }
         }
     }     
 
-
+    cout<<max_info<<endl;
     
     save_colormap(frame,"lidar_intensity.jpg",0,255);
     save_colormap(left_image,"image_intensity.jpg",0,255);
@@ -676,6 +714,8 @@ void CamLocalization::debugImage(cv::Mat& depth_image)
     save_colormap(depth_image, "image_depth.jpg",0,30);
     save_colormap(intensity_residual, "intensity_residual.jpg",0,255);
     save_colormap(depth_residual, "depth_residual.jpg",0,30);
+    save_colormap2d(dir,mag, "gradient.jpg");
+    save_colormap(info, "information.jpg",0,100);
    
 }
 

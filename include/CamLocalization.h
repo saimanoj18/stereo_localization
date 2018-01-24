@@ -61,7 +61,7 @@ public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),
     fakeTimeStamp(0),frameID(0),
-    mode(0),scale(0.7),//scale(0.42553191),
+    mode(0),scale(0.42553191),//scale(0.7),
 //    mode(1),scale(1.0),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
@@ -150,6 +150,7 @@ private:
     int ancient_width;
     double scale;
     float matching_thres;
+    float d_var;
 
     //result data
     Matrix4f ODO_pose;
@@ -179,7 +180,7 @@ private:
     Matrix4f visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4f init_pose);
     Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY); 
     
-    void debugImage(cv::Mat& depth_image);
+    void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
 
     int64_t
     timestamp_now (void)
@@ -255,6 +256,33 @@ private:
         cv::Mat falseColorsMap;
         applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_JET);
         imwrite(img_name, falseColorsMap);
+    }
+
+    void save_colormap2d(cv::Mat& img1, cv::Mat& img2, std::string img_name)
+    {
+        double min;
+        double max;
+
+        cv::Mat adjMap1;
+        img1.convertTo(adjMap1,CV_32FC1, 90.0 / M_PI, 90.0);
+
+
+        cv::Mat adjMap2;
+        cv::minMaxIdx(img2, &min, &max);
+        img2.convertTo(adjMap2,CV_32FC1, 255.0 / (max), 0.0);
+
+        cv::Mat ColorsMap = cv::Mat::zeros(cv::Size(img1.cols, img1.rows), CV_8UC3);
+        for(size_t u=0; u<width;u++)
+        {
+            for(size_t v=0; v<height;v++)
+            {
+                ColorsMap.at<cv::Vec3b>(v,u)= cv::Vec3b((int)adjMap1.at<float>(v,u),(int)adjMap2.at<float>(v,u),255);
+                //if(adjMap1.at<float>(v,u)>127)cout<<adjMap1.at<float>(v,u)<<", "<<adjMap2.at<float>(v,u)<<endl;
+            }
+        }
+        cv::Mat ColorsMap_RGB;
+        cvtColor(ColorsMap, ColorsMap_RGB, CV_HSV2RGB);
+        imwrite(img_name, ColorsMap_RGB);
     }
 
     //MapPublisher
