@@ -38,7 +38,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     {
         //load velo_raw from .las
         char filename[1000];
-        sprintf(filename, "/media/youngji/storagedevice/urban05_sick_pointcloud.las");
+        sprintf(filename, "/media/youngji/storagedevice/naver_data/20180125_kitti/sequences/11/sick_pointcloud.las");
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -51,31 +51,56 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         velo_raw->height = 1;
         velo_raw->points.resize (velo_raw->width * velo_raw->height);
         int count = 0;
-        float ox ,oy, oz;
+//        float ox ,oy, oz;
+        Matrix4f init_trans = Matrix4f::Identity();
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
             if(count == 0)
             {
                 //ifstream file("/media/youngji/storagedevice/Initial_pose.txt");
-                ifstream file("/media/youngji/storagedevice/naver_data/20171120_kitti/sequences/11/Initial_pose.txt");
+                ifstream file("/media/youngji/storagedevice/naver_data/20180125_kitti/sequences/11/Initial_pose.txt");
                 string s;
                 getline(file, s, ' ');
-                ox = atof(s.c_str());
+                init_trans(0,0) = atof(s.c_str());
                 getline(file, s, ' ');
-                oy = atof(s.c_str());
+                init_trans(0,1) = atof(s.c_str());
                 getline(file, s, ' ');
-                oz = atof(s.c_str());
+                init_trans(0,2) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(0,3) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(1,0) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(1,1) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(1,2) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(1,3) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(2,0) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(2,1) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(2,2) = atof(s.c_str());
+                getline(file, s, ' ');
+                init_trans(2,3) = atof(s.c_str());
                 file.close();
 //                ox = p[0];
 //                oy = p[1];
 //                oz = p[2];
             }
-            velo_raw->points[count].x = p[0]-ox;
-            velo_raw->points[count].y = p[1]-oy;
-            velo_raw->points[count].z = p[2]-oz;
+//            velo_raw->points[count].x = p[0]-ox;
+//            velo_raw->points[count].y = p[1]-oy;
+//            velo_raw->points[count].z = p[2]-oz;
+            velo_raw->points[count].x = p[0];
+            velo_raw->points[count].y = p[1];
+            velo_raw->points[count].z = p[2];
             count++;
         }
+        cout<<init_trans<<endl;
+        cout<<init_trans.inverse()<<endl;
+        pcl::transformPointCloud (*velo_raw, *velo_raw, init_trans.inverse());
         pcl::transformPointCloud (*velo_raw, *velo_raw, cTv);
         octree.setInputCloud (velo_raw);
         octree.addPointsFromInputCloud ();
@@ -111,7 +136,7 @@ void CamLocalization::Refresh()
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
         if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
-        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*5,21);
+        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*5,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
@@ -184,7 +209,7 @@ void CamLocalization::Refresh()
             //depth info
             float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
             if (!isfinite(info_denom)) depth_info[i] = 0;
-            else if (info_denom<0.001) depth_info[i] = 1000.0;
+            else if (info_denom<0.001) depth_info[i] = 0;
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
