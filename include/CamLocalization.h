@@ -25,6 +25,7 @@
 #include <pcl/point_types.h>
 #include <pcl/common/centroid.h>
 #include <pcl/io/ply_io.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include <pcl/octree/octree.h>
 #include <pcl/octree/octree_pointcloud.h>
@@ -62,7 +63,7 @@ public:
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),
     fakeTimeStamp(0),frameID(0),
 //    mode(0),scale(0.42553191),//scale(0.7),
-    mode(1),scale(0.7),//
+    mode(1),scale(0.72025723),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -151,6 +152,7 @@ private:
     double scale;
     float matching_thres;
     float d_var;
+    float d_limit;
 
     //result data
     Matrix4f ODO_pose;
