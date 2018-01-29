@@ -42,7 +42,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
 
         d_var = 0.00;
-        d_limit = 50.0;
+        d_limit =100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_raw from .las
@@ -97,12 +97,11 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
                 init_trans(2,3) = atof(s.c_str());
                 file.close();
             }
-            if(iter%2 == 0)
-            {
-                velo_raw->points[count].x = p[0];
-                velo_raw->points[count].y = p[1];
-                velo_raw->points[count].z = p[2];
-                count++;
+            if(iter%2 == 0){
+            velo_raw->points[count].x = p[0];
+            velo_raw->points[count].y = p[1];
+            velo_raw->points[count].z = p[2];
+            count++;
             }
             iter++;
         }
@@ -110,6 +109,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         cout<<init_trans.inverse()<<endl;
         pcl::transformPointCloud (*velo_raw, *velo_raw, init_trans.inverse());
         pcl::transformPointCloud (*velo_raw, *velo_raw, cTv);
+
         //filtering
         pcl::VoxelGrid<pcl::PointXYZ> sor;
         sor.setInputCloud (velo_raw);
@@ -175,11 +175,12 @@ void CamLocalization::Refresh()
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
         if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
-        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*5,9);
+        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*5,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
         /////////////////////////depth image generation/////////////////////////////
+        float* depth_raw = new float[width*height]();
         float* depth = new float[width*height]();
         //cv::Mat depth_image = cv::Mat(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
         cv::Mat depth_image = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
@@ -191,9 +192,12 @@ void CamLocalization::Refresh()
             v = i/width;
             
             //depth
-            int16_t d = disp.at<int16_t>(v,u);
+            int16_t d = disp.at<int16_t>(v,u);            
+            if(d==0 || d!=d || d<10) d = 0; //
+            depth_raw[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );
             if(d==0 || d!=d || d<d_limit) d = 0; //
             depth[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );//base_line*K(0,0)/disp2.at<float>(v,u);
+
 
 //            if(depth[i]>30.0)depth[i]= -1.0;
 
@@ -266,7 +270,7 @@ void CamLocalization::Refresh()
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         if(frameID>2){
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose);
             cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
@@ -274,13 +278,14 @@ void CamLocalization::Refresh()
             if (mode == 0)pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
             else
             {
+                //extract local map
                 pcl::PointXYZ searchPoint;
                 searchPoint.x = EST_pose(0,3);
                 searchPoint.y = EST_pose(1,3);
                 searchPoint.z = EST_pose(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 40.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 cloud->width = pointIdxRadiusSearch.size ();
                 cloud->height = 1;
@@ -293,6 +298,12 @@ void CamLocalization::Refresh()
                     cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
                     count++;
                 }
+//                //filtering
+//                pcl::VoxelGrid<pcl::PointXYZ> sor;
+//                sor.setInputCloud (cloud);
+//                sor.setLeafSize (0.02f, 0.02f, 0.02f);
+//                sor.filter (*cloud);
+
                 pcl::transformPointCloud (*cloud, *velo_cloud, EST_pose.inverse());
             }
            
