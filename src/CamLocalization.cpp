@@ -255,7 +255,7 @@ void CamLocalization::Refresh()
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
-            if(i%2==0)image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
+            if(i%4==0)image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
             else image_info[i] = 0;
 //            if(image_info[i]>500.0)image_info[i] = 0;
             
