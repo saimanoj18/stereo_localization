@@ -41,7 +41,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     {
 
 
-        d_var = 0.00;
+        d_var = 1.0;
         d_limit =100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
@@ -193,7 +193,7 @@ void CamLocalization::Refresh()
             
             //depth
             int16_t d = disp.at<int16_t>(v,u);            
-            if(d==0 || d!=d || d<10) d = 0; //
+            if(d==0 || d!=d ) d = 0; //
             depth_raw[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );
             if(d==0 || d!=d || d<d_limit) d = 0; //
             depth[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );//base_line*K(0,0)/disp2.at<float>(v,u);
@@ -285,7 +285,7 @@ void CamLocalization::Refresh()
                 searchPoint.z = EST_pose(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 40.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 cloud->width = pointIdxRadiusSearch.size ();
                 cloud->height = 1;
@@ -669,6 +669,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         }
 
     }
+    
     
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
