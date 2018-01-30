@@ -32,7 +32,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
     //set matching thres
     if(mode == 0){   
-        d_var = 0.01;
+        d_var = 1.00;
         d_limit = 100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(100.0/16.0) + d_var/((float)(100.0/16.0)*(100.0/16.0)*(100.0/16.0)) );
     }
@@ -255,9 +255,10 @@ void CamLocalization::Refresh()
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
-            image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
-
-
+            if(i%2==0)image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
+            else image_info[i] = 0;
+//            if(image_info[i]>500.0)image_info[i] = 0;
+            
             //cloud plot
             if(depth_info[i]>0 && isfinite(depth[i])){
                 image_cloud->points[i].x = depth[i]/K(0,0)*(u-K(0,2));
@@ -352,8 +353,9 @@ void CamLocalization::Refresh()
         delete [] depth_info;
 
         end_time = timestamp_now ();
-
-        cout<<"Elapsed time: %"<<(end_time - start_time)/1000000.0<<" secs\n"<<endl;
+        float time_diff = (end_time - start_time)/1000000.0;
+        write_times("Elapsed_times.txt", time_diff);
+        cout<<"Elapsed time: %"<<time_diff<<" secs\n"<<endl;
 
     }    
 
@@ -405,6 +407,16 @@ void CamLocalization::write_poses(std::string fname, Matrix4f saved_pose)
         poses_file << saved_pose(2,3) << '\n';
     }
     poses_file.close();
+}
+
+void CamLocalization::write_times(std::string fname, float time_diff)
+{
+    //write poses
+    ofstream times_file(fname, std::ios::app);
+    if (times_file.is_open()){
+        times_file << time_diff << '\n';
+    }
+    times_file.close();
 }
 
 void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
@@ -540,7 +552,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
         if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<matching_thres){ //pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
-            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>200)
+            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
             {
                 // SET PointXYZ VERTEX
                 g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
@@ -670,12 +682,15 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
 
     }
     
-    
+    cout<<index<<endl;
+
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
     int g2oresult = optimizer.optimize(100);
+    
+    cout<<g2oresult<<endl;
 
     // Recover optimized Sim3
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));

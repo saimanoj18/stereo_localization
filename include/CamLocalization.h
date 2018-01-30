@@ -62,8 +62,8 @@ public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),
     fakeTimeStamp(0),frameID(0),
-//    mode(0),scale(0.42553191),//scale(0.7),
-    mode(1),scale(0.72025723),//
+    mode(0),scale(0.42553191),//scale(0.7),
+//    mode(1),scale(0.72025723),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -177,6 +177,7 @@ private:
     int8_t mode;
     void read_poses(std::string fname); 
     void write_poses(std::string fname, Matrix4f saved_pose); 
+    void write_times(std::string fname, float time_diff); 
 
     //main algorithms
     Matrix4f visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4f init_pose);
