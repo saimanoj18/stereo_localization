@@ -259,7 +259,10 @@ void CamLocalization::Refresh()
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
-            image_info[i] = 500.0f*sqrt(igx*igx+igy*igy);
+            float info_nom = sqrt(igx*igx+igy*igy);
+            if(!isfinite(info_nom))image_info[i] = 0;
+            else if (info_nom>0.5) image_info[i] = 0; 
+            else image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
             
             //cloud plot
             if(depth_info[i]>0 && isfinite(depth[i])){
