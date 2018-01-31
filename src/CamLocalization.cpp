@@ -259,8 +259,7 @@ void CamLocalization::Refresh()
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
-            image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
-            if(image_info[i]>200.0)count_gradient++;
+            image_info[i] = 500.0f*sqrt(igx*igx+igy*igy);
             
             //cloud plot
             if(depth_info[i]>0 && isfinite(depth[i])){
@@ -272,8 +271,7 @@ void CamLocalization::Refresh()
         }
 
         float thres;
-        if(count_gradient>10000.0)thres = count_gradient*0.04;
-        else  thres = 100.0;
+        thres = 100.0;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         if(frameID>2){
