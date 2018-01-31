@@ -46,8 +46,9 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_raw from .las
-        char filename[1000];
-        sprintf(filename, "/media/youngji/storagedevice/naver_data/20180125_kitti/sequences/11/sick_pointcloud.las");
+        std:string filename;
+        filename = data_path_+"/sequences/11/sick_pointcloud.las";
+//        sprintf(filename, "/media/youngji/storagedevice/naver_data/20180125_kitti/sequences/11/sick_pointcloud.las");
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -69,7 +70,9 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
             if(iter == 0)
             {
                 //ifstream file("/media/youngji/storagedevice/Initial_pose.txt");
-                ifstream file("/media/youngji/storagedevice/naver_data/20180125_kitti/sequences/11/Initial_pose.txt");
+                std::string f_name;
+                f_name = data_path_+"/sequences/11/Initial_pose.txt";
+                ifstream file(f_name);
                 string s;
                 getline(file, s, ' ');
                 init_trans(0,0) = atof(s.c_str());

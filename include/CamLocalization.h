@@ -62,8 +62,8 @@ public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),
     fakeTimeStamp(0),frameID(0),
-    mode(0),scale(0.42553191),//scale(0.7),
-//    mode(1),scale(0.72025723),//72025723
+//    mode(0),scale(0.42553191),//scale(0.7),
+    mode(1),scale(0.72025723),//72025723
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -86,6 +86,8 @@ public:
         GT_pose = Matrix4f::Identity();
 
         base_line = 0.54;
+
+        data_path_ = "/media/youngji/storagedevice/naver_data/20180125_kitti";
 
 //        read_poses("poses.txt");
 //        cout<<"Pose loading is completed"<<endl;
@@ -134,6 +136,7 @@ private:
     float* igy_container;
     double fakeTimeStamp;
     int frameID;
+    std::string data_path_;
 
     //input transform    
     tf::StampedTransform ctv;
