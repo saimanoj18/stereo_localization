@@ -272,7 +272,7 @@ void CamLocalization::Refresh()
         }
 
         float thres;
-        if(count_gradient>10000.0)thres = count_gradient*0.02;
+        if(count_gradient>10000.0)thres = count_gradient*0.04;
         else  thres = 100.0;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
