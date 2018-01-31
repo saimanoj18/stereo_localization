@@ -34,7 +34,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     if(mode == 0){   
         d_var = 0.01;
         d_limit = 100.0;
-        matching_thres = K(0,0)*base_line*( 1.0/(100.0/16.0) + d_var/((float)(100.0/16.0)*(100.0/16.0)*(100.0/16.0)) );
+        matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
     }
 
     if (mode ==1)
@@ -239,7 +239,8 @@ void CamLocalization::Refresh()
         image_cloud->is_dense = false;
         image_cloud->points.resize (image_cloud->width * image_cloud->height);
 
-        
+        int count_gradient = 0;        
+
         for(size_t i=0; i<width*height;i++)
         {
 
@@ -259,7 +260,7 @@ void CamLocalization::Refresh()
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
             image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
-//            if(image_info[i]>500.0)image_info[i] = 0;
+            if(image_info[i]>200.0)count_gradient++;
             
             //cloud plot
             if(depth_info[i]>0 && isfinite(depth[i])){
@@ -270,10 +271,14 @@ void CamLocalization::Refresh()
               
         }
 
+        float thres;
+        if(count_gradient>10000.0)thres = count_gradient*0.02;
+        else  thres = 100.0;
+
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         if(frameID>2){
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,thres);
             cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
@@ -500,7 +505,7 @@ void CamLocalization::RightImgCallback(const sensor_msgs::ImageConstPtr& msg, co
 ////    cout<<"K Matrix: "<<K<<endl;
 //}
 
-Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur, Matrix4f init_pose)
+Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur, Matrix4f init_pose, float thres)
 {
     cout<<"tracking start"<<endl;
     const float deltaHuber = sqrt(10);//10 may be the best choice
@@ -554,7 +559,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
         if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<matching_thres){ //pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
-            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>200)
+            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>thres)
             {
                 // SET PointXYZ VERTEX
                 g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
@@ -583,6 +588,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
 
     }
     
+    cout<<index<<endl;
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
 //    optimizer.setVerbose(true);
@@ -654,7 +660,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         
         
         if ( pts[i][2]>0.0f && pts[i][2]<matching_thres){ //pts[i][2]<16*K(0,0)*base_line/100){//pts[i][2]<30.0){//
-                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>0)
+                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>10)
                 {
                     // SET PointXYZ VERTEX
 //                    pts[i][2] = 11.0f;
@@ -690,7 +696,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult = optimizer.optimize(100);
+    int g2oresult = optimizer.optimize(20);
     
     cout<<g2oresult<<endl;
 
