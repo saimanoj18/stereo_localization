@@ -255,7 +255,7 @@ void CamLocalization::Refresh()
             //depth info
             float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
             if (!isfinite(info_denom)) depth_info[i] = 0;
-            else if (info_denom<0.01) depth_info[i] = 0;
+            else if (info_denom<0.08) depth_info[i] = 0;
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
@@ -273,13 +273,11 @@ void CamLocalization::Refresh()
               
         }
 
-        float thres;
-        thres = 100.0;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         if(frameID>2){
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,thres);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,200.0);
             cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
@@ -318,7 +316,7 @@ void CamLocalization::Refresh()
            
             //localization
             optimized_T = Matrix4f::Identity();
-            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY);
+            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,10.0);
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 
@@ -604,7 +602,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     return result_mat;
 }
 
-Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY)
+Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres)
 {
 
     //g2o optimization 
@@ -661,7 +659,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
         
         
         if ( pts[i][2]>0.0f && pts[i][2]<matching_thres){ //pts[i][2]<16*K(0,0)*base_line/100){//pts[i][2]<30.0){//
-                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>10)
+                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>thres)
                 {
                     // SET PointXYZ VERTEX
 //                    pts[i][2] = 11.0f;
