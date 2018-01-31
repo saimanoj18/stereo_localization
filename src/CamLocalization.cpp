@@ -32,7 +32,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
     //set matching thres
     if(mode == 0){   
-        d_var = 1.00;
+        d_var = 0.01;
         d_limit = 100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(100.0/16.0) + d_var/((float)(100.0/16.0)*(100.0/16.0)*(100.0/16.0)) );
     }
@@ -251,12 +251,11 @@ void CamLocalization::Refresh()
             //depth info
             float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
             if (!isfinite(info_denom)) depth_info[i] = 0;
-            else if (info_denom<0.001) depth_info[i] = 0;
+            else if (info_denom<0.01) depth_info[i] = 0;
             else depth_info[i] = 10.0/info_denom;
             float igx = igx_image.at<float>(v,u)/32.0f;
             float igy = igy_image.at<float>(v,u)/32.0f;
-            if(i%4==0)image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
-            else image_info[i] = 0;
+            image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
 //            if(image_info[i]>500.0)image_info[i] = 0;
             
             //cloud plot
@@ -552,7 +551,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
 
         if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<matching_thres){ //pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
-            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>100)
+            if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>200)
             {
                 // SET PointXYZ VERTEX
                 g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
