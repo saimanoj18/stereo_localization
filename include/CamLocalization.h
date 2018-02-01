@@ -102,13 +102,12 @@ public:
     
     }
     void CamLocInitialize(cv::Mat image);
-    void Refresh();
+    void Refresh();    
+    void write_times(std::string fname, float time_diff); 
     
 private:
 
-    //for time computation
-    int64_t start_time;
-    int64_t end_time;
+
 
     //for ros subscription
     ros::NodeHandle nh;
@@ -181,7 +180,6 @@ private:
     int8_t mode;
     void read_poses(std::string fname); 
     void write_poses(std::string fname, Matrix4f saved_pose); 
-    void write_times(std::string fname, float time_diff); 
 
     //main algorithms
     Matrix4f visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4f init_pose, float thres);
@@ -189,13 +187,7 @@ private:
     
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
 
-    int64_t
-    timestamp_now (void)
-    {
-        struct timeval tv;
-        gettimeofday (&tv, NULL);
-        return (int64_t) tv.tv_sec * 1000000 + tv.tv_usec;
-    }
+
     Vector2d ProjectTo2D(Vector3d v)
     {
       Vector2d res;
