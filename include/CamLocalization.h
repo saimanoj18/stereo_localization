@@ -87,8 +87,8 @@ public:
 
         base_line = 0.54;
 
-//        data_path_ = "/media/youngji/storagedevice/naver_data/20180125_kitti";
-        data_path_ = "/home/irap/data/20180125_kitti";
+        data_path_ = "/media/youngji/storagedevice/naver_data/20180125_kitti";
+//        data_path_ = "/home/irap/data/20180125_kitti";
 
 //        read_poses("poses.txt");
 //        cout<<"Pose loading is completed"<<endl;

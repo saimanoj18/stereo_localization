@@ -100,12 +100,12 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
                 init_trans(2,3) = atof(s.c_str());
                 file.close();
             }
-            if(iter%2 == 0){
+//            if(iter%2 == 0){
             velo_raw->points[count].x = p[0];
             velo_raw->points[count].y = p[1];
             velo_raw->points[count].z = p[2];
             count++;
-            }
+//            }
             iter++;
         }
         cout<<init_trans<<endl;
@@ -262,9 +262,7 @@ void CamLocalization::Refresh()
             float igy = igy_image.at<float>(v,u)/32.0f;
             float info_nom = sqrt(igx*igx+igy*igy);
             if(!isfinite(info_nom))image_info[i] = 0;
-//            else if (info_nom>0.1 || info_nom<0.01) image_info[i] = 0; 
             else image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
-//            image_info[i] = 10000.0f*sqrt(igx*igx+igy*igy);
 
             if(depth_info[i]>10)count_gradient++;
             
@@ -321,10 +319,7 @@ void CamLocalization::Refresh()
            
             //localization
             optimized_T = Matrix4f::Identity();
-            float thres = count_gradient-30000.0>0?10.0+0.01*(count_gradient-30000.0):10.0;
-            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,thres);
-//            if(count_gradient>40000)optimized_T = Optimization(depth,depth_info_reserve,depth_gradientX,depth_gradientY,10.0);
-//            else optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,10.0);
+            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,10.0);
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 
