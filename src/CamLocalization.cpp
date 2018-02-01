@@ -280,7 +280,7 @@ void CamLocalization::Refresh()
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         if(frameID>2){
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,200.0);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,100.0);
             cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
