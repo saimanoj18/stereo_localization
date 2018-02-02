@@ -120,7 +120,11 @@ private:
 
     //for broadcast    
     tf::TransformBroadcaster mTfBr;
-    
+
+    //for time computation
+    int64_t start_time;
+    int64_t end_time;    
+
     //input data
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
@@ -187,6 +191,13 @@ private:
     
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
 
+    int64_t
+    timestamp_now (void)
+    {
+        struct timeval tv;
+        gettimeofday (&tv, NULL);
+        return (int64_t) tv.tv_sec * 1000000 + tv.tv_usec;
+    }
 
     Vector2d ProjectTo2D(Vector3d v)
     {

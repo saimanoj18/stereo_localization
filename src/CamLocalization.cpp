@@ -165,6 +165,8 @@ void CamLocalization::Refresh()
 
     if(Velo_received && Left_received && Right_received)
     {
+        
+        start_time = timestamp_now ();
 
         //prepar GT pose and map point clouds        
         if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
@@ -231,7 +233,6 @@ void CamLocalization::Refresh()
         float* depth_gradientX = new float[width*height]();
         float* depth_gradientY = new float[width*height]();
         float* depth_info = new float[width*height]();
-//        float* depth_info_reserve = new float[width*height]();
         float* image_info = new float[width*height]();
         pcl::PointCloud<pcl::PointXYZ>::Ptr image_cloud (new pcl::PointCloud<pcl::PointXYZ>);
         image_cloud->width    = width;
@@ -264,7 +265,7 @@ void CamLocalization::Refresh()
             if(!isfinite(info_nom))image_info[i] = 0;
             else image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
 
-            if(depth_info[i]>10)count_gradient++;
+//            if(depth_info[i]>10)count_gradient++;
             
             //cloud plot
             if(depth_info[i]>0 && isfinite(depth[i])){
@@ -275,12 +276,12 @@ void CamLocalization::Refresh()
               
         }
     
-        cout<<count_gradient<<endl;
+//        cout<<count_gradient<<endl;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
         if(frameID>2){
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,100.0);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,200.0);
             cout<<update_pose<<endl;
 
             //prepare EST_pose, velo_cloud
@@ -319,7 +320,7 @@ void CamLocalization::Refresh()
            
             //localization
             optimized_T = Matrix4f::Identity();
-            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,10.0);
+            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 
@@ -360,11 +361,12 @@ void CamLocalization::Refresh()
         delete [] depth_gradientY;
         delete [] depth;
         delete [] depth_info;
-//        delete [] depth_info_reserve;
         delete [] image_info;
 
-        
-
+        end_time = timestamp_now ();
+        float time_diff = (end_time - start_time)/1000000.0;
+        write_times("Elapsed_times.txt", time_diff);
+        cout<<"Elapsed time: %"<<time_diff<<" secs\n"<<endl;
     }    
 
 
