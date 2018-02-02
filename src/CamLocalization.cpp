@@ -27,11 +27,11 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     igx_container = new float[width*height];
     igy_container = new float[width*height];
 
-    //set initial pose
-    EST_pose = GT_pose;
 
     //set matching thres
-    if(mode == 0){   
+    if(mode == 0){
+        //set initial pose
+        EST_pose = GT_pose;   
         d_var = 0.01;
         d_limit = 100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
@@ -39,16 +39,17 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
     if (mode ==1)
     {
-
+        //set initial pose
+        IN_pose = GT_pose*cTv.inverse();
+        EST_pose = Matrix4f::Identity();
 
         d_var = 1.0;
         d_limit =100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
-        //load velo_raw from .las
+        //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/11/sick_pointcloud.las";
-//        sprintf(filename, "/media/youngji/storagedevice/naver_data/20180125_kitti/sequences/11/sick_pointcloud.las");
+        filename = data_path_+"/sequences/00/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -57,94 +58,55 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
         liblas::Reader reader(ifs);
         liblas::Header const& h = reader.GetHeader();        
-        velo_raw->width = h.GetPointRecordsCount();
-        velo_raw->height = 1;
-        velo_raw->points.resize (velo_raw->width * velo_raw->height);
+        velo_global->width = h.GetPointRecordsCount();
+        velo_global->height = 1;
+        velo_global->points.resize (velo_global->width * velo_global->height);
         int count = 0;
-        int iter = 0;
-//        float ox ,oy, oz;
-        Matrix4f init_trans = Matrix4f::Identity();
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
-            if(iter == 0)
-            {
-                //ifstream file("/media/youngji/storagedevice/Initial_pose.txt");
-                std::string f_name;
-                f_name = data_path_+"/sequences/11/Initial_pose.txt";
-                ifstream file(f_name);
-                string s;
-                getline(file, s, ' ');
-                init_trans(0,0) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(0,1) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(0,2) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(0,3) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(1,0) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(1,1) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(1,2) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(1,3) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(2,0) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(2,1) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(2,2) = atof(s.c_str());
-                getline(file, s, ' ');
-                init_trans(2,3) = atof(s.c_str());
-                file.close();
-            }
-//            if(iter%2 == 0){
-            velo_raw->points[count].x = p[0];
-            velo_raw->points[count].y = p[1];
-            velo_raw->points[count].z = p[2];
+            velo_global->points[count].x = p[0];
+            velo_global->points[count].y = p[1];
+            velo_global->points[count].z = p[2];
             count++;
-//            }
-            iter++;
         }
-        cout<<init_trans<<endl;
-        cout<<init_trans.inverse()<<endl;
-        pcl::transformPointCloud (*velo_raw, *velo_raw, init_trans.inverse());
-        pcl::transformPointCloud (*velo_raw, *velo_raw, cTv);
 
-        //filtering
-        pcl::VoxelGrid<pcl::PointXYZ> sor;
-        sor.setInputCloud (velo_raw);
-        sor.setLeafSize (0.01f, 0.01f, 0.01f);
-        sor.filter (*velo_raw);
+        cout<<IN_pose<<endl;
+        
+        pcl::transformPointCloud (*velo_global, *velo_global, IN_pose.inverse());
+
+//        //filtering
+//        pcl::VoxelGrid<pcl::PointXYZ> sor;
+//        sor.setInputCloud (velo_global);
+//        sor.setLeafSize (0.1f, 0.1f, 0.1f);
+//        sor.filter (*velo_global);
 
         //set octree
-        octree.setInputCloud (velo_raw);
+        octree.setInputCloud (velo_global);
         octree.addPointsFromInputCloud ();
-        
-        //extract local map
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointXYZ searchPoint;
-        searchPoint.x = EST_pose(0,3);
-        searchPoint.y = EST_pose(1,3);
-        searchPoint.z = EST_pose(2,3);
-        std::vector<int> pointIdxRadiusSearch;
-        std::vector<float> pointRadiusSquaredDistance;
-        octree.radiusSearch (searchPoint, 100.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+//        
+//        //extract local map
+//        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+//        pcl::PointXYZ searchPoint;
+//        searchPoint.x = EST_pose(0,3);
+//        searchPoint.y = EST_pose(1,3);
+//        searchPoint.z = EST_pose(2,3);
+//        std::vector<int> pointIdxRadiusSearch;
+//        std::vector<float> pointRadiusSquaredDistance;
+//        octree.radiusSearch (searchPoint, 100.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
-        cloud->width = pointIdxRadiusSearch.size ();
-        cloud->height = 1;
-        cloud->points.resize (cloud->width * cloud->height);
-        count = 0;
-        for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
-        {
-            cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
-            cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
-            cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
-            count++;
-        }
-        MapPub.PublishMap(cloud,1);
+//        cloud->width = pointIdxRadiusSearch.size ();
+//        cloud->height = 1;
+//        cloud->points.resize (cloud->width * cloud->height);
+//        count = 0;
+//        for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
+//        {
+//            cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
+//            cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
+//            cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
+//            count++;
+//        }
+//        MapPub.PublishMap(cloud,1);
 
     }        
 
@@ -161,16 +123,19 @@ void CamLocalization::Refresh()
     
     if(mode ==1) Velo_received = true;
 
-//    if(mode == 1)MapPub.PublishMap(velo_raw,2);//publish velo raw
 
     if(Velo_received && Left_received && Right_received)
     {
         
         start_time = timestamp_now ();
 
-        //prepar GT pose and map point clouds        
-        if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
-//        mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
+        //prepare GT pose and map point clouds 
+        bool success_pose;
+        success_pose = tlistener.waitForTransform("/kitti/World", "/kitti/Current", ros::Time(0), ros::Duration(0.1));
+        if (success_pose) {
+            tlistener.lookupTransform("/kitti/World", "/kitti/Current", ros::Time(0), wtb);
+            pcl_ros::transformAsMatrix (wtb, GT_pose);
+        }
 
         //initialize 
         if(frameID == 0)CamLocInitialize(right_image);
@@ -278,15 +243,17 @@ void CamLocalization::Refresh()
     
 //        cout<<count_gradient<<endl;
 
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-        if(frameID>2){
+        if(mode == 1)GT_pose = IN_pose.inverse()*GT_pose*cTv.inverse();
+
+        if(frameID>2){            
+            
             //tracking
             update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,200.0);
             cout<<update_pose<<endl;
 
-            //prepare EST_pose, velo_cloud
+            //prepare velo_raw
             EST_pose = EST_pose*update_pose;
-            if (mode == 0)pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
+            if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
             else
             {
                 //extract local map
@@ -298,15 +265,15 @@ void CamLocalization::Refresh()
                 std::vector<float> pointRadiusSquaredDistance;
                 octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
-                cloud->width = pointIdxRadiusSearch.size ();
-                cloud->height = 1;
-                cloud->points.resize (cloud->width * cloud->height);
+                velo_raw->width = pointIdxRadiusSearch.size ();
+                velo_raw->height = 1;
+                velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
-                    cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
-                    cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
-                    cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
+                    velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
+                    velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
+                    velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
                     count++;
                 }
 //                //filtering
@@ -315,9 +282,11 @@ void CamLocalization::Refresh()
 //                sor.setLeafSize (0.02f, 0.02f, 0.02f);
 //                sor.filter (*cloud);
 
-                pcl::transformPointCloud (*cloud, *velo_cloud, EST_pose.inverse());
             }
            
+            //prepare velo_cloud
+            pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
+            
             //localization
             optimized_T = Matrix4f::Identity();
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
@@ -327,13 +296,11 @@ void CamLocalization::Refresh()
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
 
-            if(mode == 1) MapPub.PublishMap(cloud,1);//publish velo raw
-
         }
 
-        
-        if(mode == 0)MapPub.PublishMap(velo_raw,1);//publish velo raw
-        if(mode == 0)MapPub.PublishPose(GT_pose,1);//publish GT pose
+        //publish map and pose
+        MapPub.PublishMap(velo_raw,1);//publish velo raw
+        MapPub.PublishPose(GT_pose,1);//publish GT pose
         MapPub.PublishPose(EST_pose,3);
         pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose);
         MapPub.PublishMap(image_cloud,3);
@@ -345,13 +312,12 @@ void CamLocalization::Refresh()
 
         //save poses 
         write_poses("EST_poses.txt", EST_pose);
-        if(mode == 0)write_poses("GT_poses.txt", GT_pose);
+        write_poses("GT_poses.txt", GT_pose);
 
-        if(mode == 1){
-            Eigen::Affine3d e;
-            e.matrix() = EST_pose.matrix().cast<double>();
-            tf::transformEigenToTF(e, wtb);
-        }     
+        //broadcast
+        Eigen::Affine3d e;
+        e.matrix() = EST_pose.matrix().cast<double>();
+        tf::transformEigenToTF(e, wtb);
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
         if(mode == 0)Velo_received = false;
@@ -440,21 +406,9 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
         pcl::fromPCLPointCloud2(pcl_pc2,*velo_xyzi);       
         if (velo_cloud->points.size()>0){
 
-            bool success;
-            success = tlistener.waitForTransform("/kitti/World", "/kitti/Current", ros::Time(0), ros::Duration(0.1));
-            if (success) {
-                tlistener.lookupTransform("/kitti/World", "/kitti/Current", ros::Time(0), wtb);
-                if(ODO_time!=wtb.stamp_){
-                    Matrix4f prev_pose = GT_pose;
-                    pcl_ros::transformAsMatrix (wtb, GT_pose);
-//                    update_pose = prev_pose.inverse()*GT_pose;     
-                    ODO_time=wtb.stamp_;
-
-                    cout<<"Velodyne input: "<<velo_cloud->points.size()<<endl;
-                    pcl::transformPointCloud (*velo_cloud, *velo_cloud, cTv);//transform to camera keyframe coordinate
-                    Velo_received = true;
-                }
-            }
+        cout<<"Velodyne input: "<<velo_cloud->points.size()<<endl;
+        pcl::transformPointCloud (*velo_cloud, *velo_cloud, cTv);//transform to camera keyframe coordinate
+        Velo_received = true;
 
         }
     }
