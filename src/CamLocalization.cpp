@@ -43,8 +43,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         IN_pose = GT_pose*cTv.inverse();
         EST_pose = Matrix4f::Identity();
 
-        d_var = 1.0;
-        d_limit =100.0;
+        d_var = 0.01;
+        d_limit =110.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -62,13 +62,17 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         velo_global->height = 1;
         velo_global->points.resize (velo_global->width * velo_global->height);
         int count = 0;
+        int iter = 0;
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
+//            if(iter%4 == 0){
             velo_global->points[count].x = p[0];
             velo_global->points[count].y = p[1];
             velo_global->points[count].z = p[2];
             count++;
+//            }
+            iter++;
         }
 
         cout<<IN_pose<<endl;
@@ -78,36 +82,14 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 //        //filtering
 //        pcl::VoxelGrid<pcl::PointXYZ> sor;
 //        sor.setInputCloud (velo_global);
-//        sor.setLeafSize (0.1f, 0.1f, 0.1f);
+//        sor.setLeafSize (0.01f, 0.01f, 0.01f);
 //        sor.filter (*velo_global);
 
         //set octree
         octree.setInputCloud (velo_global);
         octree.addPointsFromInputCloud ();
-//        
-//        //extract local map
-//        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-//        pcl::PointXYZ searchPoint;
-//        searchPoint.x = EST_pose(0,3);
-//        searchPoint.y = EST_pose(1,3);
-//        searchPoint.z = EST_pose(2,3);
-//        std::vector<int> pointIdxRadiusSearch;
-//        std::vector<float> pointRadiusSquaredDistance;
-//        octree.radiusSearch (searchPoint, 100.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
-
-//        cloud->width = pointIdxRadiusSearch.size ();
-//        cloud->height = 1;
-//        cloud->points.resize (cloud->width * cloud->height);
-//        count = 0;
-//        for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
-//        {
-//            cloud->points[count].x = velo_raw->points[ pointIdxRadiusSearch[i] ].x;
-//            cloud->points[count].y = velo_raw->points[ pointIdxRadiusSearch[i] ].y;
-//            cloud->points[count].z = velo_raw->points[ pointIdxRadiusSearch[i] ].z;
-//            count++;
-//        }
-//        MapPub.PublishMap(cloud,1);
-
+        
+        
     }        
 
 }
@@ -263,24 +245,27 @@ void CamLocalization::Refresh()
                 searchPoint.z = EST_pose(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
-                velo_raw->width = pointIdxRadiusSearch.size ();
+                velo_raw->clear();
+                velo_raw->width = pointIdxRadiusSearch.size()/20+1;
                 velo_raw->height = 1;
                 velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
+                    if(i%20==0){
                     velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
                     velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
                     velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
                     count++;
+                    }
                 }
 //                //filtering
 //                pcl::VoxelGrid<pcl::PointXYZ> sor;
-//                sor.setInputCloud (cloud);
-//                sor.setLeafSize (0.02f, 0.02f, 0.02f);
-//                sor.filter (*cloud);
+//                sor.setInputCloud (velo_raw);
+//                sor.setLeafSize (0.01f, 0.01f, 0.01f);
+//                sor.filter (*velo_raw);
 
             }
            
@@ -653,14 +638,14 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult = optimizer.optimize(20);
+    int g2oresult;
+    if(index>2000)g2oresult = optimizer.optimize(100);
     
     cout<<g2oresult<<endl;
 
     // Recover optimized Sim3
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
-    g2o::Sim3 g2oS12 = vSim3_recov->estimate();      
-
+    g2o::Sim3 g2oS12 = vSim3_recov->estimate();   
     Matrix4f result_mat = Sim3toMat(g2oS12);
 
     return result_mat;

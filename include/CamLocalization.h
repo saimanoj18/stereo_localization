@@ -63,7 +63,7 @@ public:
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),velo_global(new pcl::PointCloud<pcl::PointXYZ>),
     fakeTimeStamp(0),frameID(0),
 //    mode(0),scale(0.42553191),//scale(0.7),
-    mode(1),scale(0.72025723),//72025723
+    mode(1),scale(0.72025723),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -89,6 +89,7 @@ public:
 
 //        data_path_ = "/media/youngji/storagedevice/naver_data/20180125_kitti";
         data_path_ = "/home/irap/data/20180125_kitti";
+//        data_path_ = "/home/irap/data/20171120_kitti";
 
 //        read_poses("poses.txt");
 //        cout<<"Pose loading is completed"<<endl;
