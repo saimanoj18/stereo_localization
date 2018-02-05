@@ -43,8 +43,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         IN_pose = GT_pose*cTv.inverse();
         EST_pose = Matrix4f::Identity();
 
-        d_var = 0.01;
-        d_limit =110.0;
+        d_var = 1.0;
+        d_limit =100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -245,7 +245,7 @@ void CamLocalization::Refresh()
                 searchPoint.z = EST_pose(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
                 velo_raw->width = pointIdxRadiusSearch.size()/20+1;
@@ -638,8 +638,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult;
-    if(index>2000)g2oresult = optimizer.optimize(100);
+    int g2oresult = optimizer.optimize(100);
     
     cout<<g2oresult<<endl;
 
