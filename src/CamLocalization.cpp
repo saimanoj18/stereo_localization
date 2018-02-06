@@ -43,8 +43,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         IN_pose = GT_pose*cTv.inverse();
         EST_pose = Matrix4f::Identity();
 
-        d_var = 1.0;
-        d_limit =100.0;
+        d_var = 1.00;
+        d_limit =130.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -66,7 +66,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
-//            if(iter%4 == 0){
+//            if(iter%2 == 0){
             velo_global->points[count].x = p[0];
             velo_global->points[count].y = p[1];
             velo_global->points[count].z = p[2];
@@ -147,7 +147,9 @@ void CamLocalization::Refresh()
             if(d==0 || d!=d ) d = 0; //
             depth_raw[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );
             if(d==0 || d!=d || d<d_limit) d = 0; //
+//            if(mode == 1 && v<10 )d = 0;
             depth[i] = K(0,0)*base_line*( 1.0/((float)d/16.0) + d_var/((float)(d/16.0)*(d/16.0)*(d/16.0)) );//base_line*K(0,0)/disp2.at<float>(v,u);
+
 
 
 //            if(depth[i]>30.0)depth[i]= -1.0;
@@ -279,7 +281,7 @@ void CamLocalization::Refresh()
             EST_pose = EST_pose*optimized_T.inverse();
 
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
-//            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
+            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
 
         }
 
