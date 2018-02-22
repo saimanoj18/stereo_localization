@@ -63,7 +63,7 @@ public:
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),velo_global(new pcl::PointCloud<pcl::PointXYZ>),
     fakeTimeStamp(0),frameID(0),
 //    mode(0),scale(0.42553191),//scale(0.7),
-    mode(1),scale(1.0),//
+    mode(1),scale(0.382),//
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -81,11 +81,12 @@ public:
         EST_pose = Matrix4f::Identity();
         IN_pose = Matrix4f::Identity();
         update_pose = Matrix4f::Identity();
-        update_pose(2,3) = 0.8;
+        if(mode ==0 )update_pose(2,3) = 0.8;
+        else update_pose(2,3) = 0.3;
         optimized_T = Matrix4f::Identity();
         GT_pose = Matrix4f::Identity();
 
-        base_line = 0.54;
+        base_line = 0.482;
 
 //        data_path_ = "/media/youngji/storagedevice/naver_data/20180125_kitti";
         data_path_ = "/home/irap/data/20180125_kitti";

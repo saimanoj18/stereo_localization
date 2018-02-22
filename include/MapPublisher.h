@@ -41,7 +41,7 @@ public:
 
 
         //Configure MapPoints
-        fPointSize=0.05;
+        fPointSize=0.1;
         mVeloPoints.header.frame_id = MAP_FRAME_ID;
         mVeloPoints.ns = VELO_POINTS_NAMESPACE;
         mVeloPoints.id=0;
@@ -88,9 +88,9 @@ public:
         mOdoCamera.scale.x= 0.04;//0.2; 0.03
         mOdoCamera.pose.orientation.w=1.0;
         mOdoCamera.action=visualization_msgs::Marker::ADD;
-        mOdoCamera.color.r= 0.5f;
-        mOdoCamera.color.g= 0.5f;
-        mOdoCamera.color.b= 0.5f;
+        mOdoCamera.color.r= 1.0f;
+//        mOdoCamera.color.g= 0.5f;
+//        mOdoCamera.color.b= 0.5f;
         mOdoCamera.color.a = 1.0;
 
         //Configure ORB Camera
