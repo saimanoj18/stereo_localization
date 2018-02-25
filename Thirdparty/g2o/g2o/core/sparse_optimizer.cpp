@@ -72,7 +72,7 @@ namespace g2o{
 #   pragma omp parallel for default (shared) if (_activeEdges.size() > 50)
 #   endif
     OptimizableGraph::Edge* e = _activeEdges[0];
-//    e->initOcclusionimg();
+    e->initOcclusionimg();
     for (int k = 0; k < static_cast<int>(_activeEdges.size()); ++k) {
       OptimizableGraph::Edge* e = _activeEdges[k];
 //      e->computeError();
@@ -81,7 +81,7 @@ namespace g2o{
       innum += e->computeError2(new_idx);
       if (new_idx>-1){
         OptimizableGraph::Edge* e = _activeEdges[new_idx];
-//        e->clearMeasurement();
+        e->clearMeasurement();
       }
     }
 

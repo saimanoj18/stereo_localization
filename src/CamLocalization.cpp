@@ -45,7 +45,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4f::Identity();
 
         d_var = 0.01;
-        d_limit = 85.0;
+        d_limit = 80.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -127,7 +127,7 @@ void CamLocalization::Refresh()
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
         if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
-        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*2,7);
+        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*3,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+2;
 
@@ -254,13 +254,13 @@ void CamLocalization::Refresh()
                 octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
-                velo_raw->width = pointIdxRadiusSearch.size()/100+1;
+                velo_raw->width = pointIdxRadiusSearch.size()/50+1;
                 velo_raw->height = 1;
                 velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
-                    if(i%100==0){
+                    if(i%50==0){
                     velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
                     velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
                     velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
@@ -311,6 +311,11 @@ void CamLocalization::Refresh()
         e.matrix() = EST_pose.matrix().cast<double>();
         tf::transformEigenToTF(e, wtb);
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
+
+//        Eigen::Affine3d e;
+//        e.matrix() = Eigen::Matrix4d::Identity();
+//        tf::transformEigenToTF(e, wtb);
+//        mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
         if(mode == 0)Velo_received = false;
         Left_received = false;
