@@ -41,8 +41,15 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     if (mode ==1)
     {
         //set initial pose
+//        In_offset = Matrix4d::Identity();
+//        In_offset(0,3) = GT_pose(0,3);
+//        In_offset(1,3) = GT_pose(1,3);        
+//        In_offset(2,3) = GT_pose(2,3);
+//        GT_pose(0,3) = 0;
+//        GT_pose(1,3) = 0;        
+//        GT_pose(2,3) = 0;        
         IN_pose = GT_pose*cTv.inverse();
-        EST_pose = Matrix4f::Identity();
+        EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
         d_limit = 100.0;
@@ -68,17 +75,19 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         {        
             liblas::Point const& p = reader.GetPoint();
 //            if(iter%2 == 0){
-            velo_global->points[count].x = p[0];
-            velo_global->points[count].y = p[1];
-            velo_global->points[count].z = p[2];
+            velo_global->points[count].x = p[0];//-In_offset(0,3);
+            velo_global->points[count].y = p[1];//-In_offset(1,3);
+            velo_global->points[count].z = p[2];//-In_offset(2,3);
             count++;
 //            }
             iter++;
         }
 
+        cout<<GT_pose<<endl;
         cout<<IN_pose<<endl;
         
-        pcl::transformPointCloud (*velo_global, *velo_global, IN_pose.inverse());
+        pcl::transformPointCloud (*velo_global, *velo_global, IN_pose.inverse().matrix().cast <float> ());
+
 
 //        //filtering
 //        pcl::VoxelGrid<pcl::PointXYZ> sor;
@@ -101,7 +110,9 @@ void CamLocalization::Refresh()
     success = tlistener.waitForTransform("/kitti/World", "/kitti/Velodyne", ros::Time(0), ros::Duration(0.1));
     if (success) {
         tlistener.lookupTransform("/kitti/World", "/kitti/Velodyne", ros::Time(0), ctv);
-        pcl_ros::transformAsMatrix (ctv, cTv); 
+        Eigen::Affine3d e_temp;
+        tf::transformTFToEigen (ctv, e_temp);
+        cTv.matrix() = e_temp.matrix();       
     }
     
     if(mode ==1) Velo_received = true;
@@ -117,7 +128,11 @@ void CamLocalization::Refresh()
         success_pose = tlistener.waitForTransform("/kitti/World", "/kitti/Current", ros::Time(0), ros::Duration(0.1));
         if (success_pose) {
             tlistener.lookupTransform("/kitti/World", "/kitti/Current", ros::Time(0), wtb);
-            pcl_ros::transformAsMatrix (wtb, GT_pose);
+            Eigen::Affine3d e_temp;
+            tf::transformTFToEigen(wtb, e_temp);
+            GT_pose.matrix() = e_temp.matrix();  
+            //pcl_ros::transformAsMatrix (wtb, GT_pose);
+//            cout<<GT_pose<<endl;
         }
 
         //initialize 
@@ -193,8 +208,7 @@ void CamLocalization::Refresh()
         image_cloud->is_dense = false;
         image_cloud->points.resize (image_cloud->width * image_cloud->height);
 
-        int count_gradient = 0;        
-
+        int count_gradient = 0; 
         for(size_t i=0; i<width*height;i++)
         {
 
@@ -228,11 +242,11 @@ void CamLocalization::Refresh()
             }    
               
         }
-    
 //        cout<<count_gradient<<endl;
 
-        if(mode == 1)GT_pose = IN_pose.inverse()*GT_pose*cTv.inverse();
-
+        if(mode == 1){
+            GT_pose = IN_pose.inverse()*GT_pose*cTv.inverse();
+        }
         if(frameID>2){            
             
             //tracking
@@ -241,26 +255,27 @@ void CamLocalization::Refresh()
 
             //prepare velo_raw
             EST_pose = EST_pose*update_pose;
-            if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose);//transform to world coordinate
+            if(mode == 0)pcl::transformPointCloud (*velo_cloud, *velo_raw, GT_pose.matrix().cast <float> ());//transform to world coordinate
             else
             {
                 //extract local map
                 pcl::PointXYZ searchPoint;
-                searchPoint.x = EST_pose(0,3);
-                searchPoint.y = EST_pose(1,3);
-                searchPoint.z = EST_pose(2,3)+0.0;
+                Eigen::Matrix4f pose_f = EST_pose.matrix().cast<float> ();
+                searchPoint.x = pose_f(0,3);
+                searchPoint.y = pose_f(1,3);
+                searchPoint.z = pose_f(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
                 octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
-                velo_raw->width = pointIdxRadiusSearch.size()/100+1;
+                velo_raw->width = pointIdxRadiusSearch.size()/200+1;
                 velo_raw->height = 1;
                 velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
-                    if(i%100==0){
+                    if(i%200==0){
                     velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
                     velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
                     velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
@@ -274,12 +289,11 @@ void CamLocalization::Refresh()
 //                sor.filter (*velo_raw);
 
             }
-           
             //prepare velo_cloud
-            pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse());
+            pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse().matrix().cast <float> ());
             
             //localization
-            optimized_T = Matrix4f::Identity();
+            optimized_T = Matrix4d::Identity();
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
@@ -289,12 +303,12 @@ void CamLocalization::Refresh()
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
 
         }
-
+        
         //publish map and pose
         MapPub.PublishMap(velo_raw,1);//publish velo raw
         MapPub.PublishPose(GT_pose,1);//publish GT pose
         MapPub.PublishPose(EST_pose,3);
-        pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose);
+        pcl::transformPointCloud (*image_cloud, *image_cloud, EST_pose.matrix().cast <float> ());
         MapPub.PublishMap(image_cloud,3);
         
         //prepare reference images
@@ -305,10 +319,10 @@ void CamLocalization::Refresh()
         //save poses 
         write_poses("EST_poses.txt", EST_pose);
         write_poses("GT_poses.txt", GT_pose);
-
+        
         //broadcast
         Eigen::Affine3d e;
-        e.matrix() = EST_pose.matrix().cast<double>();
+        e.matrix() = EST_pose.matrix();
         tf::transformEigenToTF(e, wtb);
         mTfBr.sendTransform(tf::StampedTransform(wtb,ros::Time::now(), "/CamLoc/World", "/CamLoc/Camera"));
 
@@ -341,7 +355,7 @@ void CamLocalization::read_poses(std::string fname)
     int count = 0;
     GT_poses.clear();
 //    GT_poses.reserve(4500);
-    Matrix4f tmp = Matrix4f::Identity();
+    Matrix4d tmp = Matrix4d::Identity();
     ifstream file("poses.txt");
      while(!file.eof()){
         string s;
@@ -356,12 +370,12 @@ void CamLocalization::read_poses(std::string fname)
             tmp(i,3) = atof(s.c_str());                
         }
         GT_poses.push_back(tmp);
-        tmp = Matrix4f::Identity();
+        tmp = Matrix4d::Identity();
     }   
     file.close();
 }
 
-void CamLocalization::write_poses(std::string fname, Matrix4f saved_pose)
+void CamLocalization::write_poses(std::string fname, Matrix4d saved_pose)
 {
     //write poses
     ofstream poses_file(fname, std::ios::app);
@@ -404,7 +418,7 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
         if (velo_cloud->points.size()>0){
 
         cout<<"Velodyne input: "<<velo_cloud->points.size()<<endl;
-        pcl::transformPointCloud (*velo_cloud, *velo_cloud, cTv);//transform to camera keyframe coordinate
+        pcl::transformPointCloud (*velo_cloud, *velo_cloud, cTv.matrix().cast <float> ());//transform to camera keyframe coordinate
         Velo_received = true;
 
         }
@@ -459,7 +473,7 @@ void CamLocalization::RightImgCallback(const sensor_msgs::ImageConstPtr& msg, co
 ////    cout<<"K Matrix: "<<K<<endl;
 //}
 
-Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur, Matrix4f init_pose, float thres)
+Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur, Matrix4d init_pose, float thres)
 {
     cout<<"tracking start"<<endl;
     const float deltaHuber = sqrt(10);//10 may be the best choice
@@ -474,7 +488,7 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     // SET SIMILARITY VERTEX
     g2o::VertexSim3Expmap * vSim3 = new g2o::VertexSim3Expmap();
     vSim3->_fix_scale= false;
-    Matrix4d Rt = init_pose.cast<double> ();
+    Matrix4d Rt = init_pose;
     Matrix3d R = Rt.block<3,3>(0,0);
     Vector3d t(Rt(0,3),Rt(1,3),Rt(2,3));
     const double s = 1;
@@ -552,12 +566,12 @@ Matrix4f CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
     g2o::Sim3 g2oS12 = vSim3_recov->estimate();      
 
-    Matrix4f result_mat = Sim3toMat(g2oS12);
-//    Matrix4f result_mat;
+    Matrix4d result_mat = Sim3toMat(g2oS12);
+//    Matrix4d result_mat;
     return result_mat;
 }
 
-Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres)
+Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres)
 {
 
     //g2o optimization 
@@ -657,7 +671,7 @@ Matrix4f CamLocalization::Optimization(const float* idepth, const float* idepth_
     // Recover optimized Sim3
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
     g2o::Sim3 g2oS12 = vSim3_recov->estimate();   
-    Matrix4f result_mat = Sim3toMat(g2oS12);
+    Matrix4d result_mat = Sim3toMat(g2oS12);
 
     return result_mat;
 

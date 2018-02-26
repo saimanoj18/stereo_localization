@@ -78,13 +78,13 @@ public:
 //        sub_caminfo = nh.subscribe("/kitti/camera_gray_left/camera_info", 1, &CamLocalization::CamInfoCallback, this);
 
 
-        EST_pose = Matrix4f::Identity();
-        IN_pose = Matrix4f::Identity();
-        update_pose = Matrix4f::Identity();
+        EST_pose = Matrix4d::Identity();
+        IN_pose = Matrix4d::Identity();
+        update_pose = Matrix4d::Identity();
         if(mode ==0 )update_pose(2,3) = 0.8;
         else update_pose(2,3) = 0.3;
-        optimized_T = Matrix4f::Identity();
-        GT_pose = Matrix4f::Identity();
+        optimized_T = Matrix4d::Identity();
+        GT_pose = Matrix4d::Identity();
 
         base_line = 0.482;
 
@@ -94,6 +94,7 @@ public:
 
 //        read_poses("poses.txt");
 //        cout<<"Pose loading is completed"<<endl;
+//        cout.precision(20);
 
     }
     ~CamLocalization(){
@@ -149,7 +150,7 @@ private:
     tf::StampedTransform ctv;
     tf::StampedTransform wtb;
     tf::StampedTransform tfT;
-    Matrix4f cTv;
+    Matrix4d cTv;
 
     //input camera info
     Matrix<double,3,4> P0;
@@ -166,12 +167,12 @@ private:
 
     //result data
     ros::Time ODO_time;
-    Matrix4f IN_pose;
-    Matrix4f EST_pose;
-    Matrix4f GT_pose;
-    Matrix4f update_pose;
-    Matrix4f optimized_T;
-    vector<Matrix4f, Eigen::aligned_allocator<Eigen::Vector4f>> GT_poses;
+    Matrix4d IN_pose;
+    Matrix4d EST_pose;
+    Matrix4d GT_pose;
+    Matrix4d update_pose;
+    Matrix4d optimized_T;
+    vector<Matrix4d, Eigen::aligned_allocator<Eigen::Vector4f>> GT_poses;
  
 
     //Callbacks
@@ -186,11 +187,11 @@ private:
     bool Right_received;
     int8_t mode;
     void read_poses(std::string fname); 
-    void write_poses(std::string fname, Matrix4f saved_pose); 
+    void write_poses(std::string fname, Matrix4d saved_pose); 
 
     //main algorithms
-    Matrix4f visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4f init_pose, float thres);
-    Matrix4f Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres); 
+    Matrix4d visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4d init_pose, float thres);
+    Matrix4d Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres); 
     
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
 
@@ -219,11 +220,11 @@ private:
       return res;
     }
 
-    Matrix4f SE3toMat(const g2o::SE3Quat &SE3)
+    Matrix4d SE3toMat(const g2o::SE3Quat &SE3)
     {
-    Eigen::Matrix3f eigR = SE3.rotation().toRotationMatrix().cast <float> ();
-    Eigen::Vector3f eigt = SE3.translation().cast <float> ();
-    Matrix4f T = Matrix4f::Identity();
+    Eigen::Matrix3d eigR = SE3.rotation().toRotationMatrix();//.cast <float> ();
+    Eigen::Vector3d eigt = SE3.translation();//.cast <float> ();
+    Matrix4d T = Matrix4d::Identity();
     T.block<3,3>(0,0) = eigR;
     T(0,3) = eigt[0];
     T(1,3) = eigt[1];
@@ -231,12 +232,12 @@ private:
     return T;
     }
 
-    Matrix4f Sim3toMat(const g2o::Sim3 &Sim3)
+    Matrix4d Sim3toMat(const g2o::Sim3 &Sim3)
     {
-    Eigen::Matrix3f eigR = Sim3.rotation().toRotationMatrix().cast <float> ();
-    Eigen::Vector3f eigt = Sim3.translation().cast <float> ();
+    Eigen::Matrix3d eigR = Sim3.rotation().toRotationMatrix();//.cast <float> ();
+    Eigen::Vector3d eigt = Sim3.translation();//.cast <float> ();
     float s = (float) Sim3.scale();
-    Matrix4f T = Matrix4f::Identity();
+    Matrix4d T = Matrix4d::Identity();
     T.block<3,3>(0,0) = s*eigR;
     T(0,3) = eigt[0];
     T(1,3) = eigt[1];

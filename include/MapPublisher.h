@@ -118,14 +118,14 @@ public:
         //Configure Publisher
         publisher = nh.advertise<visualization_msgs::Marker>("CamLoc/Map", 10);
 
-        OdoPose = new vector<Matrix4f>();
-        OrbPose = new vector<Matrix4f>();
-        EstPose = new vector<Matrix4f>();
+        OdoPose = new vector<Matrix4d>();
+        OrbPose = new vector<Matrix4d>();
+        EstPose = new vector<Matrix4d>();
 
     }
 
     //publish
-    void PublishPose(Matrix4f pose, int type);
+    void PublishPose(Matrix4d pose, int type);
     void PublishMap(const pcl::PointCloud<pcl::PointXYZ>::Ptr& plot_cloud, int type); 
 
 private:
@@ -142,9 +142,9 @@ private:
     visualization_msgs::Marker mORBGraph;
     visualization_msgs::Marker mEstGraph;
 
-    vector<Matrix4f>* OdoPose;
-    vector<Matrix4f>* OrbPose;
-    vector<Matrix4f>* EstPose;
+    vector<Matrix4d>* OdoPose;
+    vector<Matrix4d>* OrbPose;
+    vector<Matrix4d>* EstPose;
 
     float fCameraSize;
     float fPointSize;
