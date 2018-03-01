@@ -49,6 +49,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 //        GT_pose(1,3) = 0;        
 //        GT_pose(2,3) = 0;        
         IN_pose = GT_pose*cTv.inverse();
+        Matrix4d IN_pose_inv = IN_pose.inverse();
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
@@ -57,7 +58,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
         //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/05/sick_pointcloud.las";
+        filename = data_path_+"/sequences/06/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -74,17 +75,31 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
-//            if(iter%2 == 0){
+//            double x,y,z;
+//            x = IN_pose_inv(0,0)*p[0]+IN_pose_inv(0,1)*p[1]+IN_pose_inv(0,2)*p[2]+IN_pose_inv(0,3);
+//            y = IN_pose_inv(1,0)*p[0]+IN_pose_inv(1,1)*p[1]+IN_pose_inv(1,2)*p[2]+IN_pose_inv(1,3);
+//            z = IN_pose_inv(2,0)*p[0]+IN_pose_inv(2,1)*p[1]+IN_pose_inv(2,2)*p[2]+IN_pose_inv(2,3);
+//            velo_global->points[count].x = x;//-In_offset(0,3);
+//            velo_global->points[count].y = y;//-In_offset(1,3);
+//            velo_global->points[count].z = z;//-In_offset(2,3);
+
             velo_global->points[count].x = p[0];//-In_offset(0,3);
             velo_global->points[count].y = p[1];//-In_offset(1,3);
             velo_global->points[count].z = p[2];//-In_offset(2,3);
-            count++;
+
+
+//            if(count == 1000){
+//            cout.precision(20);
+//            cout<<x<<", "<<y<<", "<<z<<endl;
+//            cout<<velo_global->points[count].x<<", "<<velo_global->points[count].y<<", "<<velo_global->points[count].z<<endl;
 //            }
+
+            count++;
             iter++;
         }
-
-        cout<<GT_pose<<endl;
-        cout<<IN_pose<<endl;
+//        cout.precision(20);
+//        cout<<GT_pose<<endl;
+//        cout<<IN_pose_inv<<endl;
         
         pcl::transformPointCloud (*velo_global, *velo_global, IN_pose.inverse().matrix().cast <float> ());
 
@@ -269,13 +284,13 @@ void CamLocalization::Refresh()
                 octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
-                velo_raw->width = pointIdxRadiusSearch.size()/200+1;
+                velo_raw->width = pointIdxRadiusSearch.size()/100+1;
                 velo_raw->height = 1;
                 velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
-                    if(i%200==0){
+                    if(i%100==0){
                     velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
                     velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
                     velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
@@ -289,6 +304,10 @@ void CamLocalization::Refresh()
 //                sor.filter (*velo_raw);
 
             }
+    
+//            cout.precision(20);
+//            cout<<EST_pose.inverse()<<endl;
+//            cout<<EST_pose.inverse().matrix().cast <float> ()<<endl;
             //prepare velo_cloud
             pcl::transformPointCloud (*velo_raw, *velo_cloud, EST_pose.inverse().matrix().cast <float> ());
             
