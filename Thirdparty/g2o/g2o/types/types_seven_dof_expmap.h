@@ -107,8 +107,8 @@ namespace g2o {
     const float* ImageGy;
     const float* ImageInfo;
 
-    float* occ_image;
-    int* occ_idx;
+//    float* occ_image;
+//    int* occ_idx;
 
     bool _fix_scale;
 
@@ -158,21 +158,21 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
     EdgeSim3ProjectXYZD();
     virtual bool read(std::istream& is);
     virtual bool write(std::ostream& os) const;
-    void initOcclusionimg()
-    {
-        const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
-//        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
-        for(size_t i=0; i<v1->_width*v1->_height;i++)
-        {
-            v1->occ_image[i] = 0.0f;
-            v1->occ_idx[i] = -1;
-        }
-    }
-    void clearMeasurement()
-    {
-        _error<< 0.0f;
-        _measurement = 0.0f;
-    }
+//    void initOcclusionimg()
+//    {
+//        const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
+////        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+//        for(size_t i=0; i<v1->_width*v1->_height;i++)
+//        {
+//            v1->occ_image[i] = 0.0f;
+//            v1->occ_idx[i] = -1;
+//        }
+//    }
+//    void clearMeasurement()
+//    {
+//        _error<< 0.0f;
+//        _measurement = 0.0f;
+//    }
     void computeError()
     {
       const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
@@ -241,26 +241,27 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = obsz-e1;
 
-//          _measurement = 1.0f;
-//          return_idx = -1; 
-//          return 1;
-          if(v1->occ_image[idx]>0.0f){
-            float error_abs = _error[0]>0?_error[0]:-_error[0]; 
-            if(error_abs>v1->occ_image[idx]){
-              _error<< 0.0f;
-              _measurement = 0.0f;
-              return_idx = -1;
-              return 0;            
-            }
-            else{
-              v1->occ_image[idx] = error_abs;
-              int in_idx = return_idx;
-              return_idx = v1->occ_idx[idx];
-              v1->occ_idx[idx] = in_idx;
-              _measurement = 1.0f;
-              return 0;
-            }
-          }  
+          _measurement = 1.0f;
+          return_idx = -1; 
+          return 1;
+
+//          if(v1->occ_image[idx]>0.0f){
+//            float error_abs = _error[0]>0?_error[0]:-_error[0]; 
+//            if(error_abs>v1->occ_image[idx]){
+//              _error<< 0.0f;
+//              _measurement = 0.0f;
+//              return_idx = -1;
+//              return 0;            
+//            }
+//            else{
+//              v1->occ_image[idx] = error_abs;
+//              int in_idx = return_idx;
+//              return_idx = v1->occ_idx[idx];
+//              v1->occ_idx[idx] = in_idx;
+//              _measurement = 1.0f;
+//              return 0;
+//            }
+//          }  
             
       }
 

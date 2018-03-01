@@ -683,8 +683,10 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult = optimizer.optimize(100);
-    
+    int g2oresult; // = optimizer.optimize(100);
+    if(index<2000)g2oresult = optimizer.optimize(10);
+    else g2oresult = optimizer.optimize(5);
+
     cout<<g2oresult<<endl;
 
     // Recover optimized Sim3
