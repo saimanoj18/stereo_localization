@@ -53,7 +53,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
-        d_limit = 100.0;
+        d_limit = 80.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -200,9 +200,9 @@ void CamLocalization::Refresh()
 
         }
 
-        std::string depth_file;
-        depth_file =  "./depth/"+std::to_string(frameID-1)+".jpg";
-        save_colormap(depth_image, depth_file,0,30);
+//        std::string depth_file;
+//        depth_file =  "./depth/"+std::to_string(frameID-1)+".jpg";
+//        save_colormap(depth_image, depth_file,0,30);
 
 //        cv::imshow("depth_image", depth_image);
 //        cv::waitKey(3);
@@ -285,7 +285,7 @@ void CamLocalization::Refresh()
                 searchPoint.z = pose_f(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 40.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
                 velo_raw->width = pointIdxRadiusSearch.size()/100+1;
