@@ -58,7 +58,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
         //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/06/sick_pointcloud.las";
+        filename = data_path_+"/sequences/05/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -159,7 +159,7 @@ void CamLocalization::Refresh()
         if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
         if(mode == 1)sbm = cv::StereoSGBM::create(0,16*2,7);
         sbm->compute(left_image, right_image, disp);
-        frameID = frameID+2;
+        frameID = frameID+1;
 
         /////////////////////////depth image generation/////////////////////////////
         float* depth_raw = new float[width*height]();
@@ -192,13 +192,17 @@ void CamLocalization::Refresh()
             depth_image.at<float>(v,u) = depth[i];
             
             //reference images
-            if(frameID>2){
+            if(frameID>1){
                 ref_container[i] = ref_image.at<float>(v,u);
                 igx_container[i] = ref_igx.at<float>(v,u)/32.0f;
                 igy_container[i] = ref_igy.at<float>(v,u)/32.0f;
             }
 
         }
+
+        std::string depth_file;
+        depth_file =  "./depth/"+std::to_string(frameID-1)+".jpg";
+        save_colormap(depth_image, depth_file,0,30);
 
 //        cv::imshow("depth_image", depth_image);
 //        cv::waitKey(3);
@@ -262,7 +266,7 @@ void CamLocalization::Refresh()
         if(mode == 1){
             GT_pose = IN_pose.inverse()*GT_pose*cTv.inverse();
         }
-        if(frameID>2){            
+        if(frameID>1){            
             
             //tracking
             update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth_raw,left_scaled,update_pose,200.0);
@@ -320,6 +324,7 @@ void CamLocalization::Refresh()
 
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
+
 
         }
         
