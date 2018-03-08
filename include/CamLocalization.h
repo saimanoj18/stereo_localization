@@ -62,8 +62,8 @@ public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),velo_global(new pcl::PointCloud<pcl::PointXYZ>),
     fakeTimeStamp(0),frameID(0),
-//    mode(0),scale(0.42553191),//scale(0.7),
-    mode(1),scale(0.382),//0.472
+    mode(0),scale(0.42553191),//scale(0.7),
+//    mode(1),scale(0.382),//0.472
     Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -139,12 +139,17 @@ private:
     cv::Mat ref_image;
     cv::Mat ref_igx;
     cv::Mat ref_igy;
+    cv::Mat ref_depth;
+    cv::Mat ref_depth_info;
     float* ref_container;
     float* igx_container;
     float* igy_container;
     double fakeTimeStamp;
     int frameID;
     std::string data_path_;
+    cv::Mat igx_image, igy_image;
+    cv::Mat left_scaled;
+    cv::Mat dgx_image, dgy_image; 
 
     //input transform    
     tf::StampedTransform ctv;
@@ -192,7 +197,8 @@ private:
     //main algorithms
     Matrix4d visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4d init_pose, float thres);
     Matrix4d Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres); 
-    
+    void depth_propagation(float* idepth, cv::Mat info, Matrix4d pose);    
+
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
 
     int64_t
