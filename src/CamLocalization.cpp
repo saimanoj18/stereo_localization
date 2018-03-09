@@ -50,6 +50,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
     if (mode ==1)
     {
+    
         //set initial pose
 //        In_offset = Matrix4d::Identity();
 //        In_offset(0,3) = GT_pose(0,3);
@@ -63,12 +64,12 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
-        d_limit = 80.0;
+        d_limit = 0.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/05/sick_pointcloud.las";
+        filename = data_path_+"/sequences/06/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -145,7 +146,9 @@ void CamLocalization::Refresh()
 
     if(Velo_received && Left_received && Right_received)
     {
-        
+          
+        int u, v;//for loops
+
         start_time = timestamp_now ();
 
         //prepare GT pose and map point clouds 
@@ -162,13 +165,23 @@ void CamLocalization::Refresh()
 
         //initialize 
         if(frameID == 0)CamLocInitialize(right_image);            
-
+        
+        if(mode == 1){
+            //erase skyline
+            for(size_t i=0; i<width*(height/3);i++)
+            {
+                u = i%width;
+                v = i/width;
+                
+                left_image.at<int8_t>(v,u) = 0;
+                right_image.at<int8_t>(v,u) = 0;
+            }
+        }
 
         //prepare image gradients & depth gradients
         cv::normalize(left_image, left_scaled, 0, 1, CV_MINMAX, CV_32FC1);   
         cv::Scharr(left_scaled, igx_image, CV_32FC1, 1, 0);
-        cv::Scharr(left_scaled, igy_image, CV_32FC1, 0, 1);             
-        int u, v;//for loops
+        cv::Scharr(left_scaled, igy_image, CV_32FC1, 0, 1);   
 
         /////////////////////////disparity map generation/////////////////////////////        
         disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
