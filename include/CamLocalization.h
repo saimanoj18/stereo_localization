@@ -150,6 +150,13 @@ private:
     cv::Mat igx_image, igy_image;
     cv::Mat left_scaled;
     cv::Mat dgx_image, dgy_image; 
+    cv::Mat disp;
+    cv::Mat cur_depth_info;
+    float* depth;// = new float[width*height]();
+    float* image_info;// = new float[width*height]();
+    float* depth_gradientX;// = new float[width*height]();
+    float* depth_gradientY;// = new float[width*height]();
+    float* depth_info;// = new float[width*height]();
 
     //input transform    
     tf::StampedTransform ctv;
