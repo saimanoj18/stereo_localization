@@ -169,7 +169,7 @@ void CamLocalization::Refresh()
         /////////////////////////disparity map generation/////////////////////////////        
         cv::Mat disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
-        if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
+        if(mode == 0)sbm = cv::StereoSGBM::create(0,16*2,7);
         if(mode == 1)sbm = cv::StereoSGBM::create(0,16*2,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+1;
@@ -543,11 +543,16 @@ void CamLocalization::depth_propagation(float* idepth, cv::Mat info, Matrix4d po
             if(cur[2]>0)ref_depth.at<float>(v,u) = cur[2];
             else ref_depth.at<float>(v,u) = 0;
             double ref,cur;
-            ref = ref_depth_info.at<float>(v,u)*ref_depth_info.at<float>(v,u)+100;
+            ref = (ref_depth_info.at<float>(v,u))*(ref_depth_info.at<float>(v,u));
             cur = info.at<float>(v,u)*info.at<float>(v,u);
-            if(abs(ref_depth.at<float>(v,u)-idepth[i_uv])<1.0 && ref>0 && cur>0){
+            if(abs(ref_depth.at<float>(v,u)-idepth[i_uv])<10.0 &&ref_depth_info.at<float>(v,u)>0 && info.at<float>(v,u)>0){//
                 idepth[i_uv] = (ref*idepth[i_uv]+cur*ref_depth.at<float>(v,u))/(ref+cur);
-                ref_depth_info.at<float>(v,u) = ref*cur/(ref+cur);
+                ref_depth_info.at<float>(v,u) = sqrt(ref*cur/(ref+cur));
+                ref_depth.at<float>(v,u) = idepth[i_uv];
+            }
+            else
+            {
+                ref_depth_info.at<float>(v,u) = cur;
                 ref_depth.at<float>(v,u) = idepth[i_uv];
             } 
         }
