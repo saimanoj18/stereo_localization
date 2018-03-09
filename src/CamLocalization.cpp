@@ -518,10 +518,14 @@ void CamLocalization::depth_propagation(float* idepth, cv::Mat info, Matrix4d po
                 ref_depth_info.at<float>(v,u) = sqrt(ref*cur/(ref+cur));
                 ref_depth.at<float>(v,u) = idepth[i_uv];
             }
-            else
+            else if(ref_depth_info.at<float>(v,u)<0 && info.at<float>(v,u)>0)
             {
                 ref_depth_info.at<float>(v,u) = sqrt(cur);
                 ref_depth.at<float>(v,u) = idepth[i_uv];
+            }
+            else if(ref_depth_info.at<float>(v,u)>0 && info.at<float>(v,u)<0)
+            {
+                idepth[i_uv] = ref_depth.at<float>(v,u);
             } 
         }
     }
