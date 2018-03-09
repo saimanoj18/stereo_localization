@@ -186,7 +186,7 @@ void CamLocalization::Refresh()
         /////////////////////////disparity map generation/////////////////////////////        
         disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
-        if(mode == 0)sbm = cv::StereoSGBM::create(0,16*2,7);
+        if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
         if(mode == 1)sbm = cv::StereoSGBM::create(0,16*2,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+1;
@@ -495,8 +495,10 @@ void CamLocalization::RightImgCallback(const sensor_msgs::ImageConstPtr& msg, co
 
 void CamLocalization::depth_propagation(float* idepth, cv::Mat info, Matrix4d pose)
 {
-    cv::Mat prev_image = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
-    ref_depth.copyTo(prev_image);
+    cv::Mat prev_depth = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
+    cv::Mat prev_info = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
+    ref_depth.copyTo(prev_depth);
+    ref_depth_info.copyTo(prev_info);
     ref_depth = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
     //propagate ref_depth to the new image plane
     double p_depth = 0;
@@ -508,8 +510,18 @@ void CamLocalization::depth_propagation(float* idepth, cv::Mat info, Matrix4d po
     {
         u = i%width;
         v = i/width;
+
+        //depth regularization
+        ref_depth.at<float>(v,u) = idepth[i];
+        ref_depth_info.at<float>(v,u) = info.at<float>(v,u);
+    }
+    for(size_t i=0; i<width*height;i++)
+    {
+        u = i%width;
+        v = i/width;
+
         //reproject to 3D
-        p_depth = prev_image.at<float>(v,u);
+        p_depth = prev_depth.at<float>(v,u);
         prev = ReprojectTo3D(u,v,p_depth);
         //transform
         cur[0] = p_tran(0,0)*prev[0]+p_tran(0,1)*prev[1]+p_tran(0,2)*prev[2];
@@ -520,25 +532,20 @@ void CamLocalization::depth_propagation(float* idepth, cv::Mat info, Matrix4d po
         u = cur_uv[0];
         v = cur_uv[1];
         int i_uv = u+v*width;
-        if(u<width && u>=0 && v<height && v>=0){
-            if(cur[2]>0)ref_depth.at<float>(v,u) = cur[2];
-            else ref_depth.at<float>(v,u) = 0;
-            double ref,cur;
-            ref = (ref_depth_info.at<float>(v,u))*(ref_depth_info.at<float>(v,u));
-            cur = info.at<float>(v,u)*info.at<float>(v,u);
-            if(abs(ref_depth.at<float>(v,u)-idepth[i_uv])<10.0 &&ref_depth_info.at<float>(v,u)>0 && info.at<float>(v,u)>0){//
-                idepth[i_uv] = (ref*idepth[i_uv]+cur*ref_depth.at<float>(v,u))/(ref+cur);
-                ref_depth_info.at<float>(v,u) = sqrt(ref*cur/(ref+cur));
+        if(u<width && u>=0 && v<height && v>=0&& cur[2]>0){
+            double ref_info,cur_info;
+            ref_info = prev_info.at<float>(v,u)*prev_info.at<float>(v,u);
+            cur_info = info.at<float>(v,u)*info.at<float>(v,u);
+            if(prev_info.at<float>(v,u)>0 && info.at<float>(v,u)>0){//abs(cur[2]-idepth[i_uv])<100.0 &&
+                idepth[i_uv] = (ref_info*idepth[i_uv]+cur_info*cur[2])/(ref_info+cur_info);
+                ref_depth_info.at<float>(v,u) = sqrt(ref_info*cur_info/(ref_info+cur_info));
                 ref_depth.at<float>(v,u) = idepth[i_uv];
             }
-            else if(ref_depth_info.at<float>(v,u)<0 && info.at<float>(v,u)>0)
+            else if(prev_info.at<float>(v,u)>0 && info.at<float>(v,u)<0)
             {
-                ref_depth_info.at<float>(v,u) = sqrt(cur);
-                ref_depth.at<float>(v,u) = idepth[i_uv];
-            }
-            else if(ref_depth_info.at<float>(v,u)>0 && info.at<float>(v,u)<0)
-            {
-                idepth[i_uv] = ref_depth.at<float>(v,u);
+                idepth[i_uv] = cur[2];
+                ref_depth.at<float>(v,u) = cur[2];
+                ref_depth_info.at<float>(v,u) = prev_info.at<float>(v,u);
             } 
         }
     }
