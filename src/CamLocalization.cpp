@@ -3,11 +3,6 @@
 void CamLocalization::CamLocInitialize(cv::Mat image)
 {
     //Set matrices
-//    float fx = 718.856*image.cols/ancient_width;
-//    float fy = 718.856*image.cols/ancient_width;        
-//    float cx = 607.1928*image.cols/ancient_width;
-//    float cy = 185.2157*image.cols/ancient_width;
-
     float fx = P0(0,0)*image.cols/ancient_width;
     float fy = P0(1,1)*image.cols/ancient_width;        
     float cx = P0(0,2)*image.cols/ancient_width;
@@ -51,14 +46,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
     if (mode ==1)
     {
     
-        //set initial pose
-//        In_offset = Matrix4d::Identity();
-//        In_offset(0,3) = GT_pose(0,3);
-//        In_offset(1,3) = GT_pose(1,3);        
-//        In_offset(2,3) = GT_pose(2,3);
-//        GT_pose(0,3) = 0;
-//        GT_pose(1,3) = 0;        
-//        GT_pose(2,3) = 0;        
+        //set initial pose       
         IN_pose = GT_pose*cTv.inverse();
         Matrix4d IN_pose_inv = IN_pose.inverse();
         EST_pose = Matrix4d::Identity();
@@ -86,40 +74,16 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         while (reader.ReadNextPoint())
         {        
             liblas::Point const& p = reader.GetPoint();
-//            double x,y,z;
-//            x = IN_pose_inv(0,0)*p[0]+IN_pose_inv(0,1)*p[1]+IN_pose_inv(0,2)*p[2]+IN_pose_inv(0,3);
-//            y = IN_pose_inv(1,0)*p[0]+IN_pose_inv(1,1)*p[1]+IN_pose_inv(1,2)*p[2]+IN_pose_inv(1,3);
-//            z = IN_pose_inv(2,0)*p[0]+IN_pose_inv(2,1)*p[1]+IN_pose_inv(2,2)*p[2]+IN_pose_inv(2,3);
-//            velo_global->points[count].x = x;//-In_offset(0,3);
-//            velo_global->points[count].y = y;//-In_offset(1,3);
-//            velo_global->points[count].z = z;//-In_offset(2,3);
 
-            velo_global->points[count].x = p[0];//-In_offset(0,3);
-            velo_global->points[count].y = p[1];//-In_offset(1,3);
-            velo_global->points[count].z = p[2];//-In_offset(2,3);
-
-
-//            if(count == 1000){
-//            cout.precision(20);
-//            cout<<x<<", "<<y<<", "<<z<<endl;
-//            cout<<velo_global->points[count].x<<", "<<velo_global->points[count].y<<", "<<velo_global->points[count].z<<endl;
-//            }
+            velo_global->points[count].x = p[0];
+            velo_global->points[count].y = p[1];
+            velo_global->points[count].z = p[2];
 
             count++;
             iter++;
         }
-//        cout.precision(20);
-//        cout<<GT_pose<<endl;
-//        cout<<IN_pose_inv<<endl;
         
         pcl::transformPointCloud (*velo_global, *velo_global, IN_pose.inverse().matrix().cast <float> ());
-
-
-//        //filtering
-//        pcl::VoxelGrid<pcl::PointXYZ> sor;
-//        sor.setInputCloud (velo_global);
-//        sor.setLeafSize (0.01f, 0.01f, 0.01f);
-//        sor.filter (*velo_global);
 
         //set octree
         octree.setInputCloud (velo_global);
@@ -192,7 +156,6 @@ void CamLocalization::Refresh()
         frameID = frameID+1;
 
         /////////////////////////depth image generation/////////////////////////////
-        //depth propagation
         cur_depth_info = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
         pcl::PointCloud<pcl::PointXYZ>::Ptr image_cloud (new pcl::PointCloud<pcl::PointXYZ>);
         image_cloud->width    = width;
@@ -250,9 +213,9 @@ void CamLocalization::Refresh()
             cout<<update_pose<<endl;
 
 
-            /////////////////////////depth generation/////////////////////////////
+            /////////////////////////depth gradient generation/////////////////////////////
             //depth propagation
-            depth_propagation(depth,cur_depth_info,update_pose);
+//            depth_propagation(depth,cur_depth_info,update_pose);
             //depth gradient
             cv::Scharr(ref_depth, dgx_image, CV_32FC1, 1, 0);
             cv::Scharr(ref_depth, dgy_image, CV_32FC1, 0, 1);
@@ -495,60 +458,60 @@ void CamLocalization::RightImgCallback(const sensor_msgs::ImageConstPtr& msg, co
 
 void CamLocalization::depth_propagation(float* idepth, cv::Mat info, Matrix4d pose)
 {
-    cv::Mat prev_depth = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
-    cv::Mat prev_info = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
-    ref_depth.copyTo(prev_depth);
-    ref_depth_info.copyTo(prev_info);
-    ref_depth = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
-    //propagate ref_depth to the new image plane
-    double p_depth = 0;
-    Vector3d prev,cur;
-    Matrix4d p_tran = pose.inverse();
-    Vector2d cur_uv;
-    int u, v;
-    for(size_t i=0; i<width*height;i++)
-    {
-        u = i%width;
-        v = i/width;
+//    cv::Mat prev_depth = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
+//    cv::Mat prev_info = cv::Mat::zeros(cv::Size(width, height), CV_32FC1);
+//    ref_depth.copyTo(prev_depth);
+//    ref_depth_info.copyTo(prev_info);
+//    ref_depth = cv::Mat::zeros(cv::Size(left_image.cols, left_image.rows), CV_32FC1);
+//    //propagate ref_depth to the new image plane
+//    double p_depth = 0;
+//    Vector3d prev,cur;
+//    Matrix4d p_tran = pose.inverse();
+//    Vector2d cur_uv;
+//    int u, v;
+//    for(size_t i=0; i<width*height;i++)
+//    {
+//        u = i%width;
+//        v = i/width;
 
-        //depth regularization
-        ref_depth.at<float>(v,u) = idepth[i];
-        ref_depth_info.at<float>(v,u) = info.at<float>(v,u);
-    }
-    for(size_t i=0; i<width*height;i++)
-    {
-        u = i%width;
-        v = i/width;
+//        //depth regularization
+//        ref_depth.at<float>(v,u) = idepth[i];
+//        ref_depth_info.at<float>(v,u) = info.at<float>(v,u);
+//    }
+//    for(size_t i=0; i<width*height;i++)
+//    {
+//        u = i%width;
+//        v = i/width;
 
-        //reproject to 3D
-        p_depth = prev_depth.at<float>(v,u);
-        prev = ReprojectTo3D(u,v,p_depth);
-        //transform
-        cur[0] = p_tran(0,0)*prev[0]+p_tran(0,1)*prev[1]+p_tran(0,2)*prev[2];
-        cur[1] = p_tran(1,0)*prev[0]+p_tran(1,1)*prev[1]+p_tran(1,2)*prev[2];
-        cur[2] = p_tran(2,0)*prev[0]+p_tran(2,1)*prev[1]+p_tran(2,2)*prev[2];
-        //project to new image plane
-        cur_uv = ProjectTo2D(cur);
-        u = cur_uv[0];
-        v = cur_uv[1];
-        int i_uv = u+v*width;
-        if(u<width && u>=0 && v<height && v>=0&& cur[2]>0){
-            double ref_info,cur_info;
-            ref_info = prev_info.at<float>(v,u)*prev_info.at<float>(v,u);
-            cur_info = info.at<float>(v,u)*info.at<float>(v,u);
-            if(prev_info.at<float>(v,u)>0 && info.at<float>(v,u)>0){//abs(cur[2]-idepth[i_uv])<100.0 &&
-                idepth[i_uv] = (ref_info*idepth[i_uv]+cur_info*cur[2])/(ref_info+cur_info);
-                ref_depth_info.at<float>(v,u) = sqrt(ref_info*cur_info/(ref_info+cur_info));
-                ref_depth.at<float>(v,u) = idepth[i_uv];
-            }
-            else if(prev_info.at<float>(v,u)>0 && info.at<float>(v,u)<0)
-            {
-                idepth[i_uv] = cur[2];
-                ref_depth.at<float>(v,u) = cur[2];
-                ref_depth_info.at<float>(v,u) = prev_info.at<float>(v,u);
-            } 
-        }
-    }
+//        //reproject to 3D
+//        p_depth = prev_depth.at<float>(v,u);
+//        prev = ReprojectTo3D(u,v,p_depth);
+//        //transform
+//        cur[0] = p_tran(0,0)*prev[0]+p_tran(0,1)*prev[1]+p_tran(0,2)*prev[2];
+//        cur[1] = p_tran(1,0)*prev[0]+p_tran(1,1)*prev[1]+p_tran(1,2)*prev[2];
+//        cur[2] = p_tran(2,0)*prev[0]+p_tran(2,1)*prev[1]+p_tran(2,2)*prev[2];
+//        //project to new image plane
+//        cur_uv = ProjectTo2D(cur);
+//        u = cur_uv[0];
+//        v = cur_uv[1];
+//        int i_uv = u+v*width;
+//        if(u<width && u>=0 && v<height && v>=0&& cur[2]>0){
+//            double ref_info,cur_info;
+//            ref_info = prev_info.at<float>(v,u)*prev_info.at<float>(v,u);
+//            cur_info = info.at<float>(v,u)*info.at<float>(v,u);
+//            if(prev_info.at<float>(v,u)>0 && info.at<float>(v,u)>0){//abs(cur[2]-idepth[i_uv])<100.0 &&
+//                idepth[i_uv] = (ref_info*idepth[i_uv]+cur_info*cur[2])/(ref_info+cur_info);
+//                ref_depth_info.at<float>(v,u) = sqrt(ref_info*cur_info/(ref_info+cur_info));
+//                ref_depth.at<float>(v,u) = idepth[i_uv];
+//            }
+//            else if(prev_info.at<float>(v,u)>0 && info.at<float>(v,u)<0)
+//            {
+//                idepth[i_uv] = cur[2];
+//                ref_depth.at<float>(v,u) = cur[2];
+//                ref_depth_info.at<float>(v,u) = prev_info.at<float>(v,u);
+//            } 
+//        }
+//    }
 
 }
 
