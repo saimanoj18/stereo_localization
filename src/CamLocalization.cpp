@@ -52,12 +52,12 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
-        d_limit = 0.0;
+        d_limit = 80.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/06/sick_pointcloud.las";
+        filename = data_path_+"/sequences/05/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -130,17 +130,17 @@ void CamLocalization::Refresh()
         //initialize 
         if(frameID == 0)CamLocInitialize(right_image);            
         
-        if(mode == 1){
-            //erase skyline
-            for(size_t i=0; i<width*(height/3);i++)
-            {
-                u = i%width;
-                v = i/width;
-                
-                left_image.at<int8_t>(v,u) = 0;
-                right_image.at<int8_t>(v,u) = 0;
-            }
-        }
+//        if(mode == 1){
+//            //erase skyline
+//            for(size_t i=0; i<width*(height/3);i++)
+//            {
+//                u = i%width;
+//                v = i/width;
+//                
+//                left_image.at<int8_t>(v,u) = 0;
+//                right_image.at<int8_t>(v,u) = 0;
+//            }
+//        }
 
         //prepare image gradients & depth gradients
         cv::normalize(left_image, left_scaled, 0, 1, CV_MINMAX, CV_32FC1);   
@@ -256,7 +256,7 @@ void CamLocalization::Refresh()
                 searchPoint.z = pose_f(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 40.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
                 velo_raw->width = pointIdxRadiusSearch.size()/100+1;
@@ -288,7 +288,8 @@ void CamLocalization::Refresh()
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
-
+//            update_pose = update_pose*optimized_T.inverse();
+            
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
 
