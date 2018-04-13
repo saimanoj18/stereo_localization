@@ -11,7 +11,8 @@ pcl_conversions
 pcl_msgs
 pcl_ros
 tf
-tf_conversions)
+tf_conversions
+irp_sen_msgs)
 
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -26,7 +27,7 @@ catkin_package(DEPENDS OpenCV Eigen3 libLAS
                CATKIN_DEPENDS roscpp  
                std_msgs sensor_msgs image_transport geometry_msgs
                cv_bridge
-               pcl_ros pcl_conversions pcl_msgs tf tf_conversions)
+               pcl_ros pcl_conversions pcl_msgs tf tf_conversions irp_sen_msgs)
 
 # Also add some useful compiler flag
 set(CMAKE_CXX_FLAGS

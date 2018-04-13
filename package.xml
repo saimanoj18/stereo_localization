@@ -52,6 +52,7 @@
   <build_depend>tf</build_depend>
   <build_depend>tf_conversions</build_depend>
   <build_depend>libpcl-all-dev</build_depend>
+  <build_depend>irp_sen_msgs</build_depend>
 <!--  <build_depend>libg2o</build_depend>-->
   
 
@@ -67,6 +68,7 @@
   <run_depend>tf</run_depend>
   <run_depend>tf_conversions</run_depend>
   <run_depend>libpcl-all</run_depend>
+  <run_depend>irp_sen_msgs</run_depend>
 <!--  <run_depend>libg2o</run_depend>-->
 
   <!-- The export tag contains other, unspecified, tags -->

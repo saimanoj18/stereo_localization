@@ -57,7 +57,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
 
         //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/05/sick_pointcloud.las";
+        filename = data_path_+"/sequences/08/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -209,7 +209,7 @@ void CamLocalization::Refresh()
         if(frameID>1){            
             
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
+//            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
             cout<<update_pose<<endl;
 
 
@@ -259,13 +259,13 @@ void CamLocalization::Refresh()
                 octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
-                velo_raw->width = pointIdxRadiusSearch.size()/100+1;
+                velo_raw->width = pointIdxRadiusSearch.size()/1+1;
                 velo_raw->height = 1;
                 velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
-                    if(i%100==0){
+                    if(i%1==0){
                     velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
                     velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
                     velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
@@ -286,6 +286,7 @@ void CamLocalization::Refresh()
             //localization
             optimized_T = Matrix4d::Identity();
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
+            optimized_T(2,3) = 0;
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 //            update_pose = update_pose*optimized_T.inverse();
@@ -416,6 +417,33 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
 
         }
     }
+}
+
+void CamLocalization::EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg)
+{
+    int64_t cur_enc_left = msg->left_count;
+    int64_t cur_enc_right = msg->right_count;
+    
+    if(frameID >0 ){
+        int64_t L_diff = cur_enc_left - prev_enc_left;
+        int64_t R_diff = cur_enc_right - prev_enc_right;
+        double dL = ((double)L_diff)/ENCODER_RESOLUTION * LEFT_DIAMETER * M_PI;
+        double dR = ((double)R_diff)/ENCODER_RESOLUTION * RIGHT_DIAMETER * M_PI;
+        double dist = 0.5*(dL+dR);        
+        double dth = (dR-dL)/ VEHICLE_THREAD;
+        double dx = dist * cos(dth);
+        double dy = dist * sin(dth); 
+        update_pose = Matrix4d::Identity();
+        update_pose(0,3) = -dy;
+        update_pose(2,3) = dx;
+        AngleAxisd heading(-dth,Eigen::Vector3d::UnitY());
+        update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
+
+    }
+    prev_enc_left = cur_enc_left;
+    prev_enc_right = cur_enc_right;
+    
+    
 }
 
 void CamLocalization::LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg)
