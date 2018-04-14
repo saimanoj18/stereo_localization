@@ -52,7 +52,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
-        d_limit = 80.0;
+        d_limit = 120.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -256,16 +256,16 @@ void CamLocalization::Refresh()
                 searchPoint.z = pose_f(2,3);
                 std::vector<int> pointIdxRadiusSearch;
                 std::vector<float> pointRadiusSquaredDistance;
-                octree.radiusSearch (searchPoint, 50.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+                octree.radiusSearch (searchPoint, 30.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
                 velo_raw->clear();
-                velo_raw->width = pointIdxRadiusSearch.size()/1+1;
+                velo_raw->width = pointIdxRadiusSearch.size()/10+1;
                 velo_raw->height = 1;
                 velo_raw->points.resize (velo_raw->width * velo_raw->height);
                 int count = 0;
                 for (size_t i = 0; i < pointIdxRadiusSearch.size (); ++i)
                 {
-                    if(i%1==0){
+                    if(i%10==0){
                     velo_raw->points[count].x = velo_global->points[ pointIdxRadiusSearch[i] ].x;
                     velo_raw->points[count].y = velo_global->points[ pointIdxRadiusSearch[i] ].y;
                     velo_raw->points[count].z = velo_global->points[ pointIdxRadiusSearch[i] ].z;
@@ -286,10 +286,9 @@ void CamLocalization::Refresh()
             //localization
             optimized_T = Matrix4d::Identity();
             optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
-            optimized_T(2,3) = 0;
+//            optimized_T(2,3) = 0;
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
-//            update_pose = update_pose*optimized_T.inverse();
             
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
@@ -678,6 +677,10 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     vSim3->ImageGx = d_gradientX;
     vSim3->ImageGy = d_gradientY;
     vSim3->ImageInfo = idepth_var;
+    float* occ_container = new float[width*height]();
+    vSim3->occ_image = occ_container;
+    int* occ_idx = new int[width*height]();
+    vSim3->occ_idx = occ_idx;
     optimizer.addVertex(vSim3);
 
     //Set map point vertices
@@ -745,6 +748,10 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     g2o::VertexSim3Expmap* vSim3_recov = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(0));
     g2o::Sim3 g2oS12 = vSim3_recov->estimate();   
     Matrix4d result_mat = Sim3toMat(g2oS12);
+
+
+    delete [] occ_container;
+    delete [] occ_idx;
 
     return result_mat;
 

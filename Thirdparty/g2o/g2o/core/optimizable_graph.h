@@ -394,8 +394,8 @@ namespace g2o {
         virtual void computeError() = 0;
 
         //YJ
-//        virtual void initOcclusionimg() = 0;
-//        virtual void clearMeasurement() = 0;
+        virtual void initOcclusionimg() = 0;
+        virtual void clearMeasurement() = 0;
         virtual int computeError2(int& return_idx) = 0;
 //        virtual void computePartialError(bool version) = 0;
 

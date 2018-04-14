@@ -107,8 +107,8 @@ namespace g2o {
     const float* ImageGy;
     const float* ImageInfo;
 
-//    float* occ_image;
-//    int* occ_idx;
+    float* occ_image;
+    int* occ_idx;
 
     bool _fix_scale;
 
@@ -158,21 +158,21 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
     EdgeSim3ProjectXYZD();
     virtual bool read(std::istream& is);
     virtual bool write(std::ostream& os) const;
-//    void initOcclusionimg()
-//    {
-//        const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
-////        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
-//        for(size_t i=0; i<v1->_width*v1->_height;i++)
-//        {
-//            v1->occ_image[i] = 0.0f;
-//            v1->occ_idx[i] = -1;
-//        }
-//    }
-//    void clearMeasurement()
-//    {
-//        _error<< 0.0f;
-//        _measurement = 0.0f;
-//    }
+    void initOcclusionimg()
+    {
+        const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
+//        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+        for(size_t i=0; i<v1->_width*v1->_height;i++)
+        {
+            v1->occ_image[i] = 0.0f;
+            v1->occ_idx[i] = -1;
+        }
+    }
+    void clearMeasurement()
+    {
+        _error<< 0.0f;
+        _measurement = 0.0f;
+    }
     void computeError()
     {
       const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
@@ -199,10 +199,77 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = (obsz-e1);
           _measurement = 1.0f;
+
+          if(_error[0]>1.0f || _error[0]<-1.0f){
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          }
       }
 
     }
 
+    float computeNN(Matrix<double, 1, 1> cur_obs, float cur_err, int idx, const float* imageD, int width, int height)
+    {
+        float nn = cur_err;
+
+        if((idx-1)>=0 && ((idx-1)%width)<(width-1)){
+            Matrix<double, 1, 1> e_tmp(imageD[idx-1]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx-1-width)>=0 && ((idx-1-width)%width)<(width-1)){
+            Matrix<double, 1, 1> e_tmp(imageD[idx-1-width]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx-1+width)<width*height && ((idx-1+width)%width)<(width-1)){
+            Matrix<double, 1, 1> e_tmp(imageD[idx-1+width]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx+1)<width*height && ((idx+1)%width)>0){
+            Matrix<double, 1, 1> e_tmp(imageD[idx+1]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx+1-width)>0 && ((idx+1-width)%width)>0){
+            Matrix<double, 1, 1> e_tmp(imageD[idx+1-width]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx+1+width)<width*height && ((idx+1+width)%width)>0){
+            Matrix<double, 1, 1> e_tmp(imageD[idx+1+width]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx-width)>0){
+            Matrix<double, 1, 1> e_tmp(imageD[idx-width]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        if((idx+width)<width*height){
+            Matrix<double, 1, 1> e_tmp(imageD[idx+width]);
+            e_tmp = cur_obs - e_tmp;
+            float nn_abs = nn>0?nn:-nn; 
+            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
+            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
+        }
+        return nn;
+    }
 
     int computeError2(int& return_idx)
     {
@@ -241,27 +308,38 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = obsz-e1;
 
-          _measurement = 1.0f;
-          return_idx = -1; 
-          return 1;
+          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
+          _error << err;
 
-//          if(v1->occ_image[idx]>0.0f){
-//            float error_abs = _error[0]>0?_error[0]:-_error[0]; 
-//            if(error_abs>v1->occ_image[idx]){
-//              _error<< 0.0f;
-//              _measurement = 0.0f;
-//              return_idx = -1;
-//              return 0;            
-//            }
-//            else{
-//              v1->occ_image[idx] = error_abs;
-//              int in_idx = return_idx;
-//              return_idx = v1->occ_idx[idx];
-//              v1->occ_idx[idx] = in_idx;
-//              _measurement = 1.0f;
-//              return 0;
-//            }
-//          }  
+          if(v1->occ_image[idx]>0.0f){
+            float error_abs = _error[0]>0?_error[0]:-_error[0]; 
+            if(error_abs>v1->occ_image[idx]){
+              _error<< 0.0f;
+              _measurement = 0.0f;
+              return_idx = -1;
+              return 0;            
+            }
+            else{
+              v1->occ_image[idx] = error_abs;
+              int in_idx = return_idx;
+              return_idx = v1->occ_idx[idx];
+              v1->occ_idx[idx] = in_idx;
+              _measurement = 1.0f;
+              return 0;
+            }  
+          }
+
+          if(_error[0]>3.0f || _error[0]<-3.0f){// && _measurement == 0.0f)
+              _error<< 0.0f;
+              _measurement = 0.0f;
+              return_idx = -1; 
+              return 0;
+          }
+          else{
+            _measurement = 1.0f;
+            return_idx = -1;   
+            return 1;
+          }
             
       }
 
@@ -281,6 +359,22 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ,
     EdgeSim3ProjectXYZ();
     virtual bool read(std::istream& is);
     virtual bool write(std::ostream& os) const;
+
+    void initOcclusionimg()
+    {
+//        const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
+////        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+//        for(size_t i=0; i<v1->_width*v1->_height;i++)
+//        {
+//            v1->occ_image[i] = 0.0f;
+//            v1->occ_idx[i] = -1;
+//        }
+    }
+    void clearMeasurement()
+    {
+//        _error<< 0.0f;
+//        _measurement = 0.0f;
+    }
 
     void computeError()
     {

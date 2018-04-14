@@ -223,7 +223,7 @@ namespace g2o {
     int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
 
-    if (_measurement==0)
+    if (_measurement<0.1f)
     {
 //      _error<< 0.0f;
       _jacobianOplusXi << 0,0,0;
