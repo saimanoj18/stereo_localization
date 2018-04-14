@@ -164,7 +164,7 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
 //        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
         for(size_t i=0; i<v1->_width*v1->_height;i++)
         {
-            v1->occ_image[i] = 0.0f;
+            v1->occ_image[i] = -1.0f;
             v1->occ_idx[i] = -1;
         }
     }
@@ -308,11 +308,11 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = obsz-e1;
 
-          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
-          _error << err;
+//          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
+//          _error << err;
 
+          float error_abs = _error[0]>0.0?_error[0]:-_error[0]; 
           if(v1->occ_image[idx]>0.0f){
-            float error_abs = _error[0]>0?_error[0]:-_error[0]; 
             if(error_abs>v1->occ_image[idx]){
               _error<< 0.0f;
               _measurement = 0.0f;
@@ -328,17 +328,20 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
               return 0;
             }  
           }
-
-          if(_error[0]>3.0f || _error[0]<-3.0f){// && _measurement == 0.0f)
-              _error<< 0.0f;
-              _measurement = 0.0f;
-              return_idx = -1; 
-              return 0;
-          }
           else{
-            _measurement = 1.0f;
-            return_idx = -1;   
-            return 1;
+              if(_error[0]>3.0f || _error[0]<-3.0f){// && _measurement == 0.0f)
+                  _error<< 0.0f;
+                  _measurement = 0.0f;
+                  return_idx = -1; 
+                  return 0;
+              }
+              else{
+                v1->occ_image[idx] = error_abs;
+                v1->occ_idx[idx] = return_idx;
+                _measurement = 1.0f;
+                return_idx = -1;   
+                return 1;
+              } 
           }
             
       }
