@@ -52,7 +52,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
-        d_limit = 120.0;
+        d_limit = 0.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -151,7 +151,7 @@ void CamLocalization::Refresh()
         disp = cv::Mat::zeros(cv::Size(width, height), CV_16S);
         cv::Ptr<cv::StereoSGBM> sbm;
         if(mode == 0)sbm = cv::StereoSGBM::create(0,16*5,7);
-        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*2,7);
+        if(mode == 1)sbm = cv::StereoSGBM::create(0,16*5,7);
         sbm->compute(left_image, right_image, disp);
         frameID = frameID+1;
 
@@ -209,7 +209,9 @@ void CamLocalization::Refresh()
         if(frameID>1){            
             
             //tracking
-//            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
+            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
+//            update_pose = update_pose*update_angular_pose;
+//            update_pose(1,3) = update_pose(1,3)-0.05;
             cout<<update_pose<<endl;
 
 
@@ -452,15 +454,16 @@ void CamLocalization::ImuCallback(const irp_sen_msgs::imu::ConstPtr& msg)
     if(frameID >0 ){
         AngleAxisd roll(cur_imu(0), Vector3d::UnitX());
         AngleAxisd pitch(cur_imu(1), Vector3d::UnitY());
-        AngleAxisd yaw(cur_imu(2), Vector3d::UnitZ());
+        AngleAxisd yaw(0, Vector3d::UnitZ());
         Matrix3d cur_mat = (yaw*pitch*roll).matrix();
     
         AngleAxisd p_roll(prev_imu(0), Vector3d::UnitX());
         AngleAxisd p_pitch(prev_imu(1), Vector3d::UnitY());
-        AngleAxisd p_yaw(prev_imu(2), Vector3d::UnitZ());
+        AngleAxisd p_yaw(0, Vector3d::UnitZ());
         Matrix3d prev_mat = (p_yaw*p_pitch*p_roll).matrix();
-
-        update_angular_pose = prev_mat.inverse()*cur_mat;
+        
+        update_angular_pose = Matrix4d::Identity();
+        update_angular_pose.block<3,3>(0,0) = prev_mat.inverse()*cur_mat;
 
     }
     prev_imu = cur_imu;
@@ -760,9 +763,9 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult;//= optimizer.optimize(100);
-    if(index<2000)g2oresult = optimizer.optimize(100);
-    else g2oresult = optimizer.optimize(50);
+    int g2oresult; // = optimizer.optimize(100);
+    if(index<5000)g2oresult = optimizer.optimize(10);
+    else g2oresult = optimizer.optimize(1000);
 
     cout<<g2oresult<<endl;
 

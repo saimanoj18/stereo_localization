@@ -92,7 +92,7 @@ public:
         //Set Subscriber
         sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
         sub_encoder = nh.subscribe("/kitti/encoder_count", 10, &CamLocalization::EncoderCallback, this);
-        sub_imu = nh.subscribe("/kitti/imu", 10, &CamLocalization::ImuCallback, this);
+//        sub_imu = nh.subscribe("/kitti/imu", 10, &CamLocalization::ImuCallback, this);
         sub_leftimg = it->subscribeCamera("/kitti/left_image", 10,&CamLocalization::LeftImgCallback, this);
         sub_rightimg = it->subscribeCamera("/kitti/right_image", 10,&CamLocalization::RightImgCallback, this);         
         
@@ -161,7 +161,7 @@ private:
     int64_t prev_enc_left;
     int64_t prev_enc_right;
     Vector3d prev_imu;
-    Matrix3d update_angular_pose;
+    Matrix4d update_angular_pose;
     pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
     cv::Mat left_image;
     cv::Mat right_image;
