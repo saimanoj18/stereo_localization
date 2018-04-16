@@ -19,6 +19,7 @@
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
 #include <irp_sen_msgs/encoder.h>
+#include <irp_sen_msgs/imu.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -54,7 +55,7 @@
 #include "MapPublisher.h"
 
 #ifndef ENCODER_RESOLUTION
-#define ENCODER_RESOLUTION 4096.000
+#define ENCODER_RESOLUTION 4096
 #endif
 
 #ifndef VEHICLE_THREAD
@@ -67,6 +68,10 @@
 
 #ifndef RIGHT_DIAMETER
 #define RIGHT_DIAMETER 0.6249975
+#endif
+
+#ifndef DTOR
+#define DTOR M_PI/180.0
 #endif
 
 using namespace std;
@@ -87,6 +92,7 @@ public:
         //Set Subscriber
         sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
         sub_encoder = nh.subscribe("/kitti/encoder_count", 10, &CamLocalization::EncoderCallback, this);
+        sub_imu = nh.subscribe("/kitti/imu", 10, &CamLocalization::ImuCallback, this);
         sub_leftimg = it->subscribeCamera("/kitti/left_image", 10,&CamLocalization::LeftImgCallback, this);
         sub_rightimg = it->subscribeCamera("/kitti/right_image", 10,&CamLocalization::RightImgCallback, this);         
         
@@ -134,6 +140,7 @@ private:
     image_transport::ImageTransport *it;
     ros::Subscriber sub_veloptcloud;
     ros::Subscriber sub_encoder;
+    ros::Subscriber sub_imu;
     image_transport::CameraSubscriber sub_leftimg;
     image_transport::CameraSubscriber sub_rightimg;
 //    ros::Subscriber sub_caminfo;
@@ -153,6 +160,8 @@ private:
     pcl::PointCloud<pcl::PointXYZI>::Ptr velo_xyzi;
     int64_t prev_enc_left;
     int64_t prev_enc_right;
+    Vector3d prev_imu;
+    Matrix3d update_angular_pose;
     pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
     cv::Mat left_image;
     cv::Mat right_image;
@@ -210,6 +219,7 @@ private:
     //Callbacks
     void VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
     void EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg);
+    void ImuCallback(const irp_sen_msgs::imu::ConstPtr& msg);
     void LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void RightImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);

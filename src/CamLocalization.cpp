@@ -426,8 +426,8 @@ void CamLocalization::EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg
     if(frameID >0 ){
         int64_t L_diff = cur_enc_left - prev_enc_left;
         int64_t R_diff = cur_enc_right - prev_enc_right;
-        double dL = ((double)L_diff)/ENCODER_RESOLUTION * LEFT_DIAMETER * M_PI;
-        double dR = ((double)R_diff)/ENCODER_RESOLUTION * RIGHT_DIAMETER * M_PI;
+        double dL = ((double)L_diff/((double)ENCODER_RESOLUTION)) * LEFT_DIAMETER * M_PI;
+        double dR = ((double)R_diff/((double)ENCODER_RESOLUTION)) * RIGHT_DIAMETER * M_PI;
         double dist = 0.5*(dL+dR);        
         double dth = (dR-dL)/ VEHICLE_THREAD;
         double dx = dist * cos(dth);
@@ -442,6 +442,28 @@ void CamLocalization::EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg
     prev_enc_left = cur_enc_left;
     prev_enc_right = cur_enc_right;
     
+    
+}
+
+void CamLocalization::ImuCallback(const irp_sen_msgs::imu::ConstPtr& msg)
+{
+    Vector3d cur_imu; 
+    cur_imu<< msg->eular_data.x, msg->eular_data.y, msg->eular_data.z;
+    if(frameID >0 ){
+        AngleAxisd roll(cur_imu(0), Vector3d::UnitX());
+        AngleAxisd pitch(cur_imu(1), Vector3d::UnitY());
+        AngleAxisd yaw(cur_imu(2), Vector3d::UnitZ());
+        Matrix3d cur_mat = (yaw*pitch*roll).matrix();
+    
+        AngleAxisd p_roll(prev_imu(0), Vector3d::UnitX());
+        AngleAxisd p_pitch(prev_imu(1), Vector3d::UnitY());
+        AngleAxisd p_yaw(prev_imu(2), Vector3d::UnitZ());
+        Matrix3d prev_mat = (p_yaw*p_pitch*p_roll).matrix();
+
+        update_angular_pose = prev_mat.inverse()*cur_mat;
+
+    }
+    prev_imu = cur_imu;
     
 }
 
@@ -738,7 +760,7 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.computeActiveErrors();
 
 //    optimizer.setVerbose(true);
-    int g2oresult; // = optimizer.optimize(100);
+    int g2oresult;//= optimizer.optimize(100);
     if(index<2000)g2oresult = optimizer.optimize(100);
     else g2oresult = optimizer.optimize(50);
 
@@ -754,6 +776,8 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     delete [] occ_idx;
 
     return result_mat;
+//    if(g2oresult>10)return result_mat;
+//    else return Matrix4d::Identity();
 
     
 }

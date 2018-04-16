@@ -308,8 +308,8 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _information<< v1->ImageInfo[idx];
           _error = obsz-e1;
 
-//          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
-//          _error << err;
+          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
+          _error << err;
 
           float error_abs = _error[0]>0.0?_error[0]:-_error[0]; 
           if(v1->occ_image[idx]>0.0f){
