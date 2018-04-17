@@ -51,13 +51,13 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         Matrix4d IN_pose_inv = IN_pose.inverse();
         EST_pose = Matrix4d::Identity();
 
-        d_var = 0.01;
-        d_limit = 0.0;
+        d_var = 0.001;
+        d_limit = 50.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
         std:string filename;
-        filename = data_path_+"/sequences/08/sick_pointcloud.las";
+        filename = data_path_+"/sequences/00/sick_pointcloud.las";
         std::ifstream ifs;
         if (!liblas::Open(ifs, filename))
         {
@@ -287,10 +287,11 @@ void CamLocalization::Refresh()
             
             //localization
             optimized_T = Matrix4d::Identity();
-            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
+            if(abs(update_pose(2,3))>0.01)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
 //            optimized_T(2,3) = 0;
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
+//            EST_pose = GT_pose;
             
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
@@ -652,9 +653,10 @@ Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     }
     
     cout<<index<<endl;
+    if(index>10)
+    {
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
-//    optimizer.setVerbose(true);
     int g2oresult = optimizer.optimize(10);
 
     // Recover optimized Sim3
@@ -664,6 +666,8 @@ Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     Matrix4d result_mat = Sim3toMat(g2oS12);
 //    Matrix4d result_mat;
     return result_mat;
+    }
+    else return Matrix4d::Identity();
 }
 
 Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres)
@@ -764,8 +768,8 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
 
 //    optimizer.setVerbose(true);
     int g2oresult; // = optimizer.optimize(100);
-    if(index<5000)g2oresult = optimizer.optimize(10);
-    else g2oresult = optimizer.optimize(1000);
+    if(index<2000)g2oresult = optimizer.optimize(100);
+    else g2oresult = optimizer.optimize(10);
 
     cout<<g2oresult<<endl;
 

@@ -329,7 +329,7 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
             }  
           }
           else{
-              if(_error[0]>5.0f || _error[0]<-5.0f){// && _measurement == 0.0f)
+              if(_error[0]>3.0f || _error[0]<-3.0f){// && _measurement == 0.0f)
                   _error<< 0.0f;
                   _measurement = 0.0f;
                   return_idx = -1; 
