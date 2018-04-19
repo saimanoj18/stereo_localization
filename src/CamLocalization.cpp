@@ -51,8 +51,8 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         Matrix4d IN_pose_inv = IN_pose.inverse();
         EST_pose = Matrix4d::Identity();
 
-        d_var = 0.001;
-        d_limit = 50.0;
+        d_var = 0.01;
+        d_limit = 100.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -207,11 +207,29 @@ void CamLocalization::Refresh()
             GT_pose = IN_pose.inverse()*GT_pose*cTv.inverse();
         }
         if(frameID>1){            
-            
+
+            //make update_pose using encoder and fog_3axis
+            AngleAxisd roll(fog_angles(0), Vector3d::UnitX());
+            AngleAxisd pitch(fog_angles(1), Vector3d::UnitY());
+            AngleAxisd yaw(fog_angles(2), Vector3d::UnitZ());
+            Matrix3d fog_rotation = (yaw*pitch*roll).matrix();
+
+            double dist = 0.5*(dL+dR);
+            double dth = fog_angles(2);
+//            double dth = (dR-dL)/ VEHICLE_THREAD;
+            double dx = dist * cos(dth);
+            double dy = dist * sin(dth);
+ 
+            update_pose = Matrix4d::Identity();
+            update_pose(0,3) = dx;
+            update_pose(1,3) = dy;
+            AngleAxisd heading(dth,Eigen::Vector3d::UnitZ());
+//            update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
+            update_pose.block<3,3>(0,0) = fog_rotation;
+            update_pose = cTv*update_pose*cTv.inverse();            
+
             //tracking
-            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
-//            update_pose = update_pose*update_angular_pose;
-//            update_pose(1,3) = update_pose(1,3)-0.05;
+//            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
             cout<<update_pose<<endl;
 
 
@@ -287,8 +305,9 @@ void CamLocalization::Refresh()
             
             //localization
             optimized_T = Matrix4d::Identity();
-            if(abs(update_pose(2,3))>0.01)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
-//            optimized_T(2,3) = 0;
+//            if(frameID<200)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
+            if(abs(update_pose(2,3))>0.1)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
+            if(abs(optimized_T(2,3))>0.06) optimized_T(2,3) = 0;
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
 //            EST_pose = GT_pose;
@@ -425,49 +444,49 @@ void CamLocalization::EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg
 {
     int64_t cur_enc_left = msg->left_count;
     int64_t cur_enc_right = msg->right_count;
-    
+
     if(frameID >0 ){
         int64_t L_diff = cur_enc_left - prev_enc_left;
         int64_t R_diff = cur_enc_right - prev_enc_right;
-        double dL = ((double)L_diff/((double)ENCODER_RESOLUTION)) * LEFT_DIAMETER * M_PI;
-        double dR = ((double)R_diff/((double)ENCODER_RESOLUTION)) * RIGHT_DIAMETER * M_PI;
-        double dist = 0.5*(dL+dR);        
-        double dth = (dR-dL)/ VEHICLE_THREAD;
-        double dx = dist * cos(dth);
-        double dy = dist * sin(dth); 
-        update_pose = Matrix4d::Identity();
-        update_pose(0,3) = -dy;
-        update_pose(2,3) = dx;
-        AngleAxisd heading(-dth,Eigen::Vector3d::UnitY());
-        update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
+        dL = ((double)L_diff/((double)ENCODER_RESOLUTION)) * LEFT_DIAMETER * M_PI;
+        dR = ((double)R_diff/((double)ENCODER_RESOLUTION)) * RIGHT_DIAMETER * M_PI;
+//        double dist = 0.5*(dL+dR);        
+//        double dth = (dR-dL)/ VEHICLE_THREAD;
+//        double dx = dist * cos(dth);
+//        double dy = dist * sin(dth); 
+//        update_pose = Matrix4d::Identity();
+//        update_pose(0,3) = dx;
+//        update_pose(1,3) = dy;
+//        AngleAxisd heading(dth,Eigen::Vector3d::UnitZ());
+//        update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
+//        cout<<update_pose<<endl;
+//        update_pose = cTv*update_pose*cTv.inverse();
 
     }
     prev_enc_left = cur_enc_left;
     prev_enc_right = cur_enc_right;
-    
-    
+        
 }
 
-void CamLocalization::ImuCallback(const irp_sen_msgs::imu::ConstPtr& msg)
+void CamLocalization::FogCallback(const irp_sen_msgs::fog_3axis::ConstPtr& msg)
 {
-    Vector3d cur_imu; 
-    cur_imu<< msg->eular_data.x, msg->eular_data.y, msg->eular_data.z;
-    if(frameID >0 ){
-        AngleAxisd roll(cur_imu(0), Vector3d::UnitX());
-        AngleAxisd pitch(cur_imu(1), Vector3d::UnitY());
-        AngleAxisd yaw(0, Vector3d::UnitZ());
-        Matrix3d cur_mat = (yaw*pitch*roll).matrix();
-    
-        AngleAxisd p_roll(prev_imu(0), Vector3d::UnitX());
-        AngleAxisd p_pitch(prev_imu(1), Vector3d::UnitY());
-        AngleAxisd p_yaw(0, Vector3d::UnitZ());
-        Matrix3d prev_mat = (p_yaw*p_pitch*p_roll).matrix();
-        
-        update_angular_pose = Matrix4d::Identity();
-        update_angular_pose.block<3,3>(0,0) = prev_mat.inverse()*cur_mat;
+    fog_angles<< msg->d_roll, msg->d_pitch, msg->d_yaw;
+//    if(frameID >0 ){
+//        AngleAxisd roll(cur_imu(0), Vector3d::UnitX());
+//        AngleAxisd pitch(cur_imu(1), Vector3d::UnitY());
+//        AngleAxisd yaw(0, Vector3d::UnitZ());
+//        Matrix3d cur_mat = (yaw*pitch*roll).matrix();
+//    
+//        AngleAxisd p_roll(prev_imu(0), Vector3d::UnitX());
+//        AngleAxisd p_pitch(prev_imu(1), Vector3d::UnitY());
+//        AngleAxisd p_yaw(0, Vector3d::UnitZ());
+//        Matrix3d prev_mat = (p_yaw*p_pitch*p_roll).matrix();
+//        
+//        update_angular_pose = Matrix4d::Identity();
+//        update_angular_pose.block<3,3>(0,0) = prev_mat.inverse()*cur_mat;
 
-    }
-    prev_imu = cur_imu;
+//    }
+//    prev_imu = cur_imu;
     
 }
 
@@ -766,10 +785,12 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
     optimizer.initializeOptimization();
     optimizer.computeActiveErrors();
 
-//    optimizer.setVerbose(true);
+    optimizer.setVerbose(true);
     int g2oresult; // = optimizer.optimize(100);
-    if(index<2000)g2oresult = optimizer.optimize(100);
-    else g2oresult = optimizer.optimize(10);
+    if(index<10000)g2oresult = optimizer.optimize(100);
+    else g2oresult = optimizer.optimize(3)+8;
+//    g2oresult = optimizer.optimize(100);
+//    else return Matrix4d::Identity();
 
     cout<<g2oresult<<endl;
 

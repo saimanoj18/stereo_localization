@@ -450,6 +450,7 @@ namespace g2o{
         _algorithm->printVerbose(cerr);
         cerr << endl;
       }
+//      cjIterations += _algorithm->levenbergIteration();
       ++cjIterations; 
       postIteration(i);
     }

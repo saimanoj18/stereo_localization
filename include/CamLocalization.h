@@ -20,6 +20,7 @@
 #include <tf_conversions/tf_eigen.h>
 #include <irp_sen_msgs/encoder.h>
 #include <irp_sen_msgs/imu.h>
+#include <irp_sen_msgs/fog_3axis.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -92,7 +93,7 @@ public:
         //Set Subscriber
         sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
         sub_encoder = nh.subscribe("/kitti/encoder_count", 10, &CamLocalization::EncoderCallback, this);
-//        sub_imu = nh.subscribe("/kitti/imu", 10, &CamLocalization::ImuCallback, this);
+        sub_fog = nh.subscribe("/kitti/fog", 10, &CamLocalization::FogCallback, this);
         sub_leftimg = it->subscribeCamera("/kitti/left_image", 10,&CamLocalization::LeftImgCallback, this);
         sub_rightimg = it->subscribeCamera("/kitti/right_image", 10,&CamLocalization::RightImgCallback, this);         
         
@@ -140,7 +141,7 @@ private:
     image_transport::ImageTransport *it;
     ros::Subscriber sub_veloptcloud;
     ros::Subscriber sub_encoder;
-    ros::Subscriber sub_imu;
+    ros::Subscriber sub_fog;
     image_transport::CameraSubscriber sub_leftimg;
     image_transport::CameraSubscriber sub_rightimg;
 //    ros::Subscriber sub_caminfo;
@@ -160,7 +161,9 @@ private:
     pcl::PointCloud<pcl::PointXYZI>::Ptr velo_xyzi;
     int64_t prev_enc_left;
     int64_t prev_enc_right;
-    Vector3d prev_imu;
+    double dL;
+    double dR;
+    Vector3d fog_angles;
     Matrix4d update_angular_pose;
     pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
     cv::Mat left_image;
@@ -192,6 +195,7 @@ private:
     tf::StampedTransform wtb;
     tf::StampedTransform tfT;
     Matrix4d cTv;
+    Matrix4d imu_pose;
 
     //input camera info
     Matrix<double,3,4> P0;
@@ -219,7 +223,7 @@ private:
     //Callbacks
     void VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
     void EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg);
-    void ImuCallback(const irp_sen_msgs::imu::ConstPtr& msg);
+    void FogCallback(const irp_sen_msgs::fog_3axis::ConstPtr& msg);
     void LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void RightImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);
