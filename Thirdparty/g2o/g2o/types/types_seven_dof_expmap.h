@@ -102,10 +102,15 @@ namespace g2o {
       res[1] = v[1]*_focal_length2[1] + _principle_point2[1];
       return res;
     }
-    const float* ImageD;
+    const float* Image;
     const float* ImageGx;
     const float* ImageGy;
     const float* ImageInfo;
+
+    const float* Depth;
+    const float* DepthGx;
+    const float* DepthGy;
+    const float* DepthInfo;
 
     float* occ_image;
     int* occ_idx;
@@ -187,16 +192,16 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           _error<< 0.0f;
           _measurement = 0.0f;
       }
-      else if(v1->ImageD[idx]<=0 || v1->ImageInfo[idx]<=0)
+      else if(v1->Depth[idx]<=0 || v1->DepthInfo[idx]<=0)
       {
           _error<< 0.0f;
           _measurement = 0.0f;
       }
       else
       {
-          Matrix<double, 1, 1> e1(v1->ImageD[idx]);
+          Matrix<double, 1, 1> e1(v1->Depth[idx]);
           Matrix<double, 1, 1> obsz(v1->estimate().map(v2->estimate())[2]);
-          _information<< v1->ImageInfo[idx];
+          _information<< v1->DepthInfo[idx];
           _error = (obsz-e1);
           _measurement = 1.0f;
 
@@ -206,69 +211,6 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           }
       }
 
-    }
-
-    float computeNN(Matrix<double, 1, 1> cur_obs, float cur_err, int idx, const float* imageD, int width, int height)
-    {
-        float nn = cur_err;
-
-        if((idx-1)>=0 && ((idx-1)%width)<(width-1)){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-1]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx-1-width)>=0 && ((idx-1-width)%width)<(width-1)){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-1-width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx-1+width)<width*height && ((idx-1+width)%width)<(width-1)){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-1+width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+1)<width*height && ((idx+1)%width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+1]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+1-width)>0 && ((idx+1-width)%width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+1-width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+1+width)<width*height && ((idx+1+width)%width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+1+width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx-width)>0){
-            Matrix<double, 1, 1> e_tmp(imageD[idx-width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        if((idx+width)<width*height){
-            Matrix<double, 1, 1> e_tmp(imageD[idx+width]);
-            e_tmp = cur_obs - e_tmp;
-            float nn_abs = nn>0?nn:-nn; 
-            float e_tmp_abs = e_tmp[0]>0?e_tmp[0]:-e_tmp[0]; 
-            if(e_tmp_abs<nn_abs)nn = e_tmp[0];  
-        }
-        return nn;
     }
 
     int computeError2(int& return_idx)
@@ -286,14 +228,14 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
           return_idx = -1;
           return 0;
       }
-      else if(!std::isfinite(v1->ImageD[idx]))
+      else if(!std::isfinite(v1->Depth[idx]))
       {
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
           return 0;
       }
-     else if(!std::isfinite(v1->ImageGx[idx]) || !std::isfinite(v1->ImageGy[idx]))
+     else if(!std::isfinite(v1->DepthGx[idx]) || !std::isfinite(v1->DepthGy[idx]))
      {
           _error<< 0.0f;
           _measurement = 0.0f;
@@ -303,13 +245,11 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
      }
       else
       {
-          Matrix<double, 1, 1> e1(v1->ImageD[idx]);
+          Matrix<double, 1, 1> e1(v1->Depth[idx]);
           Matrix<double, 1, 1> obsz(v1->estimate().map(v2->estimate())[2]);
-          _information<< v1->ImageInfo[idx];
+          _information<< v1->DepthInfo[idx];
           _error = obsz-e1;
 
-//          float err = computeNN(obsz, _error[0], idx, v1->ImageD, (int)v1->_width, (int) v1->_height);
-//          _error << err;
 
           float error_abs = _error[0]>0.0?_error[0]:-_error[0]; 
           if(v1->occ_image[idx]>0.0f){
@@ -399,53 +339,47 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ,
       Vector2d Ipos( v1->cam_map(v1->estimate().map(v2->estimate())) );
       int idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
 
-//      std::cout<<Ipos<<std::endl;
       if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1]))
       {
           _error<< 0.0f;
-//          _measurement = 0.0f;
           return_idx = -1;
           return 0;            
       }
       else if (Ipos[0]>=v1->_width || Ipos[0]<0 || Ipos[1]>=v1->_height || Ipos[1]<0 )
       {
           _error<< 0.0f;
-//          _measurement = 0.0f;
           return_idx = -1;
           return 0;
       }
       else if(!std::isfinite(v1->ImageD[idx]))
       {
           _error<< 0.0f;
-//          _measurement = 0.0f;
           return_idx = -1;
           return 0;
       }
      else if(!std::isfinite(v1->ImageGx[idx]) || !std::isfinite(v1->ImageGy[idx]))
      {
           _error<< 0.0f;
-//          _measurement = 0.0f;
           return_idx = -1;
           return 0;
-
      }
-      else
-      {
+     else if(_measurement<0)
+     {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+     }
+     else
+     {
           Matrix<double, 1, 1> e1(_measurement);
-          Matrix<double, 1, 1> obsz(v1->ImageD[idx]);
+          Matrix<double, 1, 1> obsz(v1->Image[idx]);
           _information<< v1->ImageInfo[idx];//1000;// 
           _error = obsz-e1;
-          
-//          if(!std::isfinite(_information[0]))std::cout<<_error<<std::endl;
-        
 
-//          std::cout<<"obsz: "<<obsz<<std::endl;
-//          std::cout<<"e1: "<<e1<<std::endl;  
-//          std::cout<<_error<<std::endl;
           return_idx = -1; 
           return 1;
 
-      }
+     }
 
     }
 

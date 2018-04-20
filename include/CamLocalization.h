@@ -236,7 +236,8 @@ private:
 
     //main algorithms
     Matrix4d visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4d init_pose, float thres);
-    Matrix4d Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres); 
+    Matrix4d Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres);
+    Matrix4d Optimization_combined(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* depth, const float* depth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose);  
     void depth_propagation(float* idepth, cv::Mat info, Matrix4d pose);    
 
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);

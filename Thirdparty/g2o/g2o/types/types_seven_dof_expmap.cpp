@@ -238,8 +238,8 @@ namespace g2o {
         Matrix<double,2,4> K_p;
         Matrix<double,4,6> p_note;
 
-        D_u(0,0) = vj->ImageGx[idx];
-        D_u(0,1) = vj->ImageGy[idx];
+        D_u(0,0) = vj->DepthGx[idx];
+        D_u(0,1) = vj->DepthGy[idx];
 
 
         K_p(0,0) = vj->_focal_length1[0]/xyz_trans[2];
@@ -293,7 +293,7 @@ namespace g2o {
       _jacobianOplusXi << 0,0,0;
       _jacobianOplusXj<<0,0,0,0,0,0,0;
     }
-    else if(!std::isfinite(vj->ImageD[idx]))
+    else if(!std::isfinite(vj->Image[idx]))
     {
       _jacobianOplusXi << 0,0,0;
       _jacobianOplusXj<<0,0,0,0,0,0,0;

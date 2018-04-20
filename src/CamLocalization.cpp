@@ -127,18 +127,6 @@ void CamLocalization::Refresh()
 
         //initialize 
         if(frameID == 0)CamLocInitialize(right_image);            
-        
-//        if(mode == 1){
-//            //erase skyline
-//            for(size_t i=0; i<width*(height/3);i++)
-//            {
-//                u = i%width;
-//                v = i/width;
-//                
-//                left_image.at<int8_t>(v,u) = 0;
-//                right_image.at<int8_t>(v,u) = 0;
-//            }
-//        }
 
         //prepare image gradients & depth gradients
         cv::normalize(left_image, left_scaled, 0, 1, CV_MINMAX, CV_32FC1);   
@@ -242,7 +230,7 @@ void CamLocalization::Refresh()
  
             //tracking
 //            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
-            cout<<update_pose<<endl;
+//            cout<<update_pose<<endl;
 
 
             /////////////////////////depth gradient generation/////////////////////////////
@@ -318,7 +306,7 @@ void CamLocalization::Refresh()
             //localization
             optimized_T = Matrix4d::Identity();
 //            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
-            if(abs(update_pose(2,3))>0.1)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
+//            if(abs(update_pose(2,3))>0.1)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
 //            if(abs(optimized_T(2,3))>0.06) optimized_T(2,3) = 0;
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
@@ -833,6 +821,125 @@ Matrix4d CamLocalization::Optimization(const float* idepth, const float* idepth_
 //    else return Matrix4d::Identity();
 
     
+}
+
+Matrix4d CamLocalization::Optimization_combined(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* depth, const float* depth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose)
+{
+    //g2o optimization 
+    const float deltaHuber = sqrt(10);//10 may be the best choice
+
+    //solver initialization
+    g2o::SparseOptimizer optimizer;
+    g2o::BlockSolverX::LinearSolverType * linearSolver;
+    linearSolver = new g2o::LinearSolverDense<g2o::BlockSolverX::PoseMatrixType>();
+    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linearSolver);
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    optimizer.setAlgorithm(solver);
+
+    // SET SIMILARITY VERTEX
+    g2o::VertexSim3Expmap * vSim3 = new g2o::VertexSim3Expmap();
+    vSim3->_fix_scale= false;
+    Matrix3d R = Matrix3d::Identity();
+    Vector3d t(0,0,0);
+    const double s = 1;
+    g2o::Sim3 g2oS_init(R,t,s);
+    vSim3->setEstimate(g2oS_init);
+    vSim3->setId(0);
+    vSim3->setFixed(false);
+    vSim3->_principle_point1[0] = K(0,2);
+    vSim3->_principle_point1[1] = K(1,2);
+    vSim3->_focal_length1[0] = K(0,0);
+    vSim3->_focal_length1[1] = K(1,1);
+    vSim3->_width = width;
+    vSim3->_height = height;
+    vSim3->Image = image;
+    vSim3->ImageGx = i_gradientX;
+    vSim3->ImageGy = i_gradientY;
+    vSim3->ImageInfo = image_var;
+    vSim3->Depth = depth;
+    vSim3->DepthGx = d_gradientX;
+    vSim3->DepthGy = d_gradientY;
+    vSim3->DepthInfo = depth_var;
+    float* occ_container = new float[width*height]();
+    vSim3->occ_image = occ_container;
+    int* occ_idx = new int[width*height]();
+    vSim3->occ_idx = occ_idx;
+    optimizer.addVertex(vSim3);
+
+    g2o::VertexSim3Expmap * vSim3_fake = new g2o::VertexSim3Expmap();
+    R = init_pose.block<3,3>(0,0);
+    t<<init_pose(0,3),init_pose(1,3),init_pose(2,3);
+    g2o::Sim3 g2oS_init2(R,t,s);
+    vSim3_fake->setEstimate(g2oS_init2);
+    vSim3_fake->_principle_point1[0] = K(0,2);
+    vSim3_fake->_principle_point1[1] = K(1,2);
+    vSim3_fake->_focal_length1[0] = K(0,0);
+    vSim3_fake->_focal_length1[1] = K(1,1);
+    vSim3_fake->_width = width;
+    vSim3_fake->_height = height;
+
+    //Set map point vertices
+    Matrix<double,3,1>pts;
+    int numpts = velo_cloud->points.size();
+    Matrix<double, 1, 1> info;
+    info << 0.0f;
+
+    int index = 1;
+    for(size_t i=0; i<numpts;i++)
+    {
+        // map points for image n
+        pts <<velo_cloud->points[i].x, velo_cloud->points[i].y, velo_cloud->points[i].z ;
+        Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
+        int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
+
+        // map points for image n-1
+        Vector2d Ipos2( vSim3->cam_map(vSim3_fake->estimate().map(pts)) );
+        int i_idx2 = ((int)Ipos[1])*vSim3->_width+((int)Ipos2[0]);         
+        
+        
+        if ( pts[2]>0.0f && pts[2]<matching_thres){ 
+                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0) // && idepth_var[i_idx]>thres)
+                {
+                    // SET PointXYZ VERTEX
+                    g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+                    vPoint->setEstimate(pts);
+                    vPoint->setId(index);
+                    vPoint->setFixed(true);
+                    optimizer.addVertex(vPoint);
+                    
+                    // Set Image Edge
+                    
+                    g2o::EdgeSim3ProjectXYZ* e_image = new g2o::EdgeSim3ProjectXYZ();
+                    e_image->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
+                    e_image->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                    if (Ipos2[0]<vSim3->_width && Ipos2[0]>=0 && Ipos2[1]<vSim3->_height && Ipos2[1]>=0)e_image->setMeasurement(ref[i_idx2]);
+                    else e_image->setMeasurement(-1);
+                    info << image_var[i_idx];
+                    e_image->setInformation(info);
+                    g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
+                    rk1->setDelta(deltaHuber);
+                    e_image->setRobustKernel(rk1);
+                    optimizer.addEdge(e_image);
+                    index++;
+
+                    // Set Depth Edge
+                    g2o::EdgeSim3ProjectXYZD* e_depth = new g2o::EdgeSim3ProjectXYZD();
+                    e_depth->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
+                    e_depth->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                    e_depth->setMeasurement(1.0f);
+                    info << depth_var[i_idx];
+                    e_depth->setInformation(info);
+                    g2o::RobustKernelHuber* rk2 = new g2o::RobustKernelHuber;
+                    rk2->setDelta(deltaHuber);
+                    e_depth->setRobustKernel(rk2);
+                    optimizer.addEdge(e_depth);
+                    index++;
+                }
+        }
+
+    }     
+
+
 }
 
 void CamLocalization::debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image, const float* depth_info)
