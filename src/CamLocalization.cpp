@@ -52,7 +52,7 @@ void CamLocalization::CamLocInitialize(cv::Mat image)
         EST_pose = Matrix4d::Identity();
 
         d_var = 0.01;
-        d_limit = 100.0;
+        d_limit = 50.0;
         matching_thres = K(0,0)*base_line*( 1.0/(d_limit/16.0) + d_var/((float)(d_limit/16.0)*(d_limit/16.0)*(d_limit/16.0)) );
 
         //load velo_global from .las
@@ -123,8 +123,6 @@ void CamLocalization::Refresh()
             Eigen::Affine3d e_temp;
             tf::transformTFToEigen(wtb, e_temp);
             GT_pose.matrix() = e_temp.matrix();  
-            //pcl_ros::transformAsMatrix (wtb, GT_pose);
-//            cout<<GT_pose<<endl;
         }
 
         //initialize 
@@ -208,26 +206,40 @@ void CamLocalization::Refresh()
         }
         if(frameID>1){            
 
-            //make update_pose using encoder and fog_3axis
-            AngleAxisd roll(fog_angles(0), Vector3d::UnitX());
-            AngleAxisd pitch(fog_angles(1), Vector3d::UnitY());
-            AngleAxisd yaw(fog_angles(2), Vector3d::UnitZ());
-            Matrix3d fog_rotation = (yaw*pitch*roll).matrix();
+//            //make update_pose using encoder and fog_3axis
+//            AngleAxisd roll(fog_angles(0), Vector3d::UnitX());
+//            AngleAxisd pitch(fog_angles(1), Vector3d::UnitY());
+//            AngleAxisd yaw(fog_angles(2), Vector3d::UnitZ());
+//            Matrix3d fog_rotation = (yaw*pitch*roll).matrix();
 
-            double dist = 0.5*(dL+dR);
-            double dth = fog_angles(2);
-//            double dth = (dR-dL)/ VEHICLE_THREAD;
-            double dx = dist * cos(dth);
-            double dy = dist * sin(dth);
+//            double dist = 0.5*(dL+dR);
+//            double dth = fog_angles(2);
+////            double dth = (dR-dL)/ VEHICLE_THREAD;
+//            double dx = dist * cos(dth);
+//            double dy = dist * sin(dth);
+// 
+//            update_pose = Matrix4d::Identity();
+//            update_pose(0,3) = dx;
+//            update_pose(1,3) = dy;
+////            AngleAxisd heading(dth,Eigen::Vector3d::UnitZ());
+////            update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
+//            update_pose.block<3,3>(0,0) = fog_rotation;
+//            update_pose = cTv*update_pose*cTv.inverse();            
+
+            bool success_imu;
+            success_imu = tlistener.waitForTransform("/kitti/World", "/kitti/IMU", ros::Time(0), ros::Duration(0.1));
+            if (success_imu) {
+                tlistener.lookupTransform("/kitti/World", "/kitti/IMU", ros::Time(0), wtb);
+                Eigen::Affine3d e_temp;
+                tf::transformTFToEigen(wtb, e_temp);
+                update_pose.matrix() = e_temp.matrix(); 
+            }            
+//            AngleAxisd roll(M_PI, Vector3d::UnitX());
+//            Matrix4d vTb = Matrix4d::Identity();
+//            vTb.block<3,3>(0,0) = roll.matrix();
+//            update_pose = cTv*vTb*update_pose*(cTv*vTb).inverse();
+            update_pose = cTv*update_pose*cTv.inverse();
  
-            update_pose = Matrix4d::Identity();
-            update_pose(0,3) = dx;
-            update_pose(1,3) = dy;
-            AngleAxisd heading(dth,Eigen::Vector3d::UnitZ());
-//            update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
-            update_pose.block<3,3>(0,0) = fog_rotation;
-            update_pose = cTv*update_pose*cTv.inverse();            
-
             //tracking
 //            update_pose = visual_tracking(ref_container,igx_container,igy_container,image_info,depth,left_scaled,update_pose,200.0);
             cout<<update_pose<<endl;
@@ -305,12 +317,11 @@ void CamLocalization::Refresh()
             
             //localization
             optimized_T = Matrix4d::Identity();
-//            if(frameID<200)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
+//            optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
             if(abs(update_pose(2,3))>0.1)optimized_T = Optimization(depth,depth_info,depth_gradientX,depth_gradientY,5.0);
-            if(abs(optimized_T(2,3))>0.06) optimized_T(2,3) = 0;
+//            if(abs(optimized_T(2,3))>0.06) optimized_T(2,3) = 0;
             cout<<optimized_T<<endl;
             EST_pose = EST_pose*optimized_T.inverse();
-//            EST_pose = GT_pose;
             
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
 //            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
@@ -603,9 +614,10 @@ Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     // SET SIMILARITY VERTEX
     g2o::VertexSim3Expmap * vSim3 = new g2o::VertexSim3Expmap();
     vSim3->_fix_scale= false;
-    Matrix4d Rt = init_pose;
-    Matrix3d R = Rt.block<3,3>(0,0);
-    Vector3d t(Rt(0,3),Rt(1,3),Rt(2,3));
+    Matrix3d R = Matrix3d::Identity();
+    Vector3d t(0,0,0);
+//    R = init_pose.block<3,3>(0,0);
+//    t<<init_pose(0,3),init_pose(1,3),init_pose(2,3);
     const double s = 1;
     g2o::Sim3 g2oS_init(R,t,s);
     vSim3->setEstimate(g2oS_init);
@@ -628,6 +640,19 @@ Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
 
     int index = 1;
     int u, v;
+    g2o::VertexSim3Expmap * vSim3_fake = new g2o::VertexSim3Expmap();
+    R = init_pose.block<3,3>(0,0);
+    t<<init_pose(0,3),init_pose(1,3),init_pose(2,3);
+    g2o::Sim3 g2oS_init2(R,t,s);
+    vSim3_fake->setEstimate(g2oS_init2);
+    vSim3_fake->_principle_point1[0] = K(0,2);
+    vSim3_fake->_principle_point1[1] = K(1,2);
+    vSim3_fake->_focal_length1[0] = K(0,0);
+    vSim3_fake->_focal_length1[1] = K(1,1);
+    vSim3_fake->_width = width;
+    vSim3_fake->_height = height;
+
+
     for(size_t i=0; i<width*height;i++)
     {
 
@@ -638,8 +663,8 @@ Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
         Matrix<double,3,1> pts;
         pts <<idepth[i]/K(0,0)*(u-K(0,2)), idepth[i]/K(1,1)*(v-K(1,2)), idepth[i] ;
 
-        Vector2d Ipos( vSim3->cam_map(vSim3->estimate().map(pts)) );
-        int i_idx = ((int)Ipos[1])*vSim3->_width+((int)Ipos[0]);
+        Vector2d Ipos( vSim3_fake->cam_map(vSim3_fake->estimate().map(pts)) );
+        int i_idx = ((int)Ipos[1])*vSim3_fake->_width+((int)Ipos[0]);
 
         if ( pts[2]>0.0f && isfinite(pts[2]) && pts[2]<matching_thres){ //pts[2]<16*K(0,0)*base_line/100){ //pts[2]<30.0){//
             if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && i_var[i_idx]>thres)
@@ -683,8 +708,8 @@ Matrix4d CamLocalization::visual_tracking(const float* ref, const float* r_igx, 
     g2o::Sim3 g2oS12 = vSim3_recov->estimate();      
 
     Matrix4d result_mat = Sim3toMat(g2oS12);
-//    Matrix4d result_mat;
-    return result_mat;
+//    return result_mat;
+    return result_mat*init_pose;
     }
     else return Matrix4d::Identity();
 }
