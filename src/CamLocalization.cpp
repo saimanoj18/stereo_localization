@@ -165,7 +165,7 @@ void CamLocalization::Refresh()
             float igy = igy_image.at<float>(v,u)/32.0f;
             float info_nom = sqrt(igx*igx+igy*igy);
             if(!isfinite(info_nom))image_info[i] = 0;
-            else image_info[i] = 1.0f*sqrt(igx*igx+igy*igy);       
+            else image_info[i] = 10.0f*sqrt(igx*igx+igy*igy);       
 
             //reference images
             if(frameID>1){
@@ -275,6 +275,7 @@ void CamLocalization::Refresh()
             optimized_T = Matrix4d::Identity();
             optimized_T = Optimization_combined(ref_container, src_container, image_info, image_gradientX, image_gradientY, depth, depth_info, depth_gradientX, depth_gradientY, update_pose);
             cout<<optimized_T<<endl;
+//            update_pose = update_pose*optimized_T.inverse();
             EST_pose = EST_pose*optimized_T.inverse();
             
 //            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
