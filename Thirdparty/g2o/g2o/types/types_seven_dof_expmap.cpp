@@ -303,6 +303,11 @@ namespace g2o {
       _jacobianOplusXi << 0,0,0;
       _jacobianOplusXj<<0,0,0,0,0,0,0;
     }
+    else if(_measurement<0)
+    {
+      _jacobianOplusXi << 0,0,0;
+      _jacobianOplusXj<<0,0,0,0,0,0,0;
+    }
     else
     {
         Matrix<double,1,2> D_u;
@@ -334,7 +339,8 @@ namespace g2o {
         Tp_note(3,5) = 0;
 
         _jacobianOplusXi << 0,0,0;
-        _jacobianOplusXj.block<1,6>(0,0) = D_u*K_p*Tp_note;//-D_u*K_p*Tp_note;//
+//        _jacobianOplusXj.block<1,6>(0,0) = D_u*K_p*Tp_note;//-D_u*K_p*Tp_note;//
+        _jacobianOplusXj.block<1,6>(0,0) = -D_u*K_p*Tp_note;
          
     }
 

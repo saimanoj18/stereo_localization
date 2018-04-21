@@ -124,9 +124,15 @@ public:
     ~CamLocalization(){
         //references.clear();
         delete [] ref_container;
-        delete [] igx_container;
-        delete [] igy_container;
-    
+        delete [] src_container;
+        delete [] image_gradientX;
+        delete [] image_gradientY;
+        delete [] image_info;
+
+        delete [] depth;
+        delete [] depth_gradientX;
+        delete [] depth_gradientY;
+        delete [] depth_info;    
     }
     void CamLocInitialize(cv::Mat image);
     void Refresh();    
@@ -169,13 +175,15 @@ private:
     cv::Mat left_image;
     cv::Mat right_image;
     cv::Mat ref_image;
-    cv::Mat ref_igx;
-    cv::Mat ref_igy;
+//    cv::Mat ref_igx;
+//    cv::Mat ref_igy;
     cv::Mat ref_depth;
     cv::Mat ref_depth_info;
     float* ref_container;
-    float* igx_container;
-    float* igy_container;
+    float* src_container;
+    float* image_gradientX;
+    float* image_gradientY;
+    float* image_info;
     double fakeTimeStamp;
     int frameID;
     std::string data_path_;
@@ -184,11 +192,10 @@ private:
     cv::Mat dgx_image, dgy_image; 
     cv::Mat disp;
     cv::Mat cur_depth_info;
-    float* depth;// = new float[width*height]();
-    float* image_info;// = new float[width*height]();
-    float* depth_gradientX;// = new float[width*height]();
-    float* depth_gradientY;// = new float[width*height]();
-    float* depth_info;// = new float[width*height]();
+    float* depth;
+    float* depth_gradientX;
+    float* depth_gradientY;
+    float* depth_info;
 
     //input transform    
     tf::StampedTransform ctv;
@@ -235,10 +242,7 @@ private:
     void write_poses(std::string fname, Matrix4d saved_pose); 
 
     //main algorithms
-    Matrix4d visual_tracking(const float* ref, const float* r_igx, const float* r_igy, const float* i_var, const float* idepth, cv::Mat cur,Matrix4d init_pose, float thres);
-    Matrix4d Optimization(const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, float thres);
-    Matrix4d Optimization_combined(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* depth, const float* depth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose);  
-    void depth_propagation(float* idepth, cv::Mat info, Matrix4d pose);    
+    Matrix4d Optimization_combined(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose);  
 
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
 

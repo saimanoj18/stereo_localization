@@ -269,7 +269,7 @@ class EdgeSim3ProjectXYZD : public  BaseBinaryEdge<1, double, VertexSBAPointXYZ,
             }  
           }
           else{
-              if(_error[0]>3.0f || _error[0]<-3.0f){// && _measurement == 0.0f)
+              if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
                   _error<< 0.0f;
                   _measurement = 0.0f;
                   return_idx = -1; 
@@ -331,10 +331,7 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ,
     int computeError2(int& return_idx)
     {
       const VertexSim3Expmap* v1 = static_cast<const VertexSim3Expmap*>(_vertices[1]);
-      const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
-
-      const Vector3d v3 = v1->estimate().map(v2->estimate());
-      
+      const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[0]); 
      
       Vector2d Ipos( v1->cam_map(v1->estimate().map(v2->estimate())) );
       int idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
@@ -351,7 +348,7 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ,
           return_idx = -1;
           return 0;
       }
-      else if(!std::isfinite(v1->ImageD[idx]))
+      else if(!std::isfinite(v1->Image[idx]))
       {
           _error<< 0.0f;
           return_idx = -1;
@@ -374,7 +371,7 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<1, double,  VertexSBAPointXYZ,
           Matrix<double, 1, 1> e1(_measurement);
           Matrix<double, 1, 1> obsz(v1->Image[idx]);
           _information<< v1->ImageInfo[idx];//1000;// 
-          _error = obsz-e1;
+          _error = e1-obsz;
 
           return_idx = -1; 
           return 1;
