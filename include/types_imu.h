@@ -87,11 +87,11 @@ namespace g2o {
 
   };
 
-  class EdgeImuProjectXYZ : public BaseMultiEdge<1, double>
+  class EdgeImuProjectXYZD : public BaseMultiEdge<1, double>
   {
     public:
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-      EdgeImuProjectXYZ();
+      EdgeImuProjectXYZD();
 
       void initOcclusionimg()
       {
@@ -118,7 +118,7 @@ namespace g2o {
         const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
         const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[2]);
 
-        Vector2d Ipos( v1->cam_map(v1->estimate().map(v2->estimate())) );
+        Vector2d Ipos( v1->cam_map(v1->estimate().map_inv(v2->estimate())) );
         int idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
 
         if (Ipos[0]>=v1->_width || Ipos[0]<0 || Ipos[1]>=v1->_height || Ipos[1]<0 )
@@ -146,7 +146,7 @@ namespace g2o {
         else
         {
           Matrix<double, 1, 1> e1(v1->Depth[idx]);
-          Matrix<double, 1, 1> obsz(v1->estimate().map(v2->estimate())[2]);
+          Matrix<double, 1, 1> obsz(v1->estimate().map_inv(v2->estimate())[2]);
           _information<< v1->DepthInfo[idx];
           _error = obsz-e1;
 
@@ -192,6 +192,109 @@ namespace g2o {
       virtual void linearizeOplus();
       virtual bool read(std::istream& is);
       virtual bool write(std::ostream& os) const;
+
+  };
+
+  class EdgeImuProjectXYZ : public  BaseMultiEdge<1, double>
+  {
+    public:
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+      EdgeImuProjectXYZ();
+      virtual bool read(std::istream& is);
+      virtual bool write(std::ostream& os) const;
+
+      void initOcclusionimg()
+      {
+      }
+      void clearMeasurement()
+      {
+      }
+
+      void computeError()
+      {
+      }
+    
+      int computeError2(int& return_idx)
+      {
+        const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
+        const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
+        const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[2]);
+
+        Vector2d Ipos( v0->cam_map(v0->estimate().map_inv(v2->estimate())) );
+        int i_idx = (int)(((int)Ipos[1])*v0->_width+((int)Ipos[0]));
+
+        Vector2d Jpos( v1->cam_map(v1->estimate().map_inv(v2->estimate())) );
+        int j_idx = (int)(((int)Jpos[1])*v1->_width+((int)Jpos[0]));
+
+        if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;            
+        }
+        else if (Ipos[0]>=v0->_width || Ipos[0]<0 || Ipos[1]>=v0->_height || Ipos[1]<0 )
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if (Jpos[0]>=v1->_width || Jpos[0]<0 || Jpos[1]>=v1->_height || Jpos[1]<0 )
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v0->Image[i_idx]))
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v1->Image[j_idx]))
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v0->ImageGx[i_idx]) || !std::isfinite(v0->ImageGy[i_idx]))
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v1->ImageGx[j_idx]) || !std::isfinite(v1->ImageGy[j_idx]))
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(_measurement<0)
+        {
+          _error<< 0.0f;
+          _measurement = 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else
+        {
+          Matrix<double, 1, 1> e1(v0->Image[i_idx]);
+          Matrix<double, 1, 1> obsz(v1->Image[j_idx]);
+          _information<< v0->ImageInfo[i_idx] + v1->ImageInfo[j_idx];//1000;// 
+          _error = e1-obsz;
+          _measurement = 1.0f;
+          return_idx = -1; 
+          return 1;
+        }
+
+      }
+
+   virtual void linearizeOplus();
 
   };
 

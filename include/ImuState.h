@@ -86,6 +86,10 @@ namespace g2o {
         Vector3d map (const Vector3d& xyz) const {
             return (R_*xyz) + t_;
         }
+
+        Vector3d map_inv (const Vector3d& xyz) const {
+            return R_.inverse()*(xyz - t_);
+        }
      
     private:
         double time_;//sec
