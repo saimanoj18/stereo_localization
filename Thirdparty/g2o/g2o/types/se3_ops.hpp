@@ -82,4 +82,50 @@
     return res;
   }
 
+  Matrix3d Exp(const Vector3d& omega)
+  {
+    double theta = omega.norm();
+    Vector3d a = omega/theta;
+    Matrix3d aa;
+    aa <<a[0]*a[0],a[0]*a[1],a[0]*a[2],
+         a[1]*a[0],a[1]*a[1],a[1]*a[2],
+         a[2]*a[0],a[2]*a[1],a[2]*a[2];
+    Matrix3d Omega = skew(omega);
+    Matrix3d Omega2 = Omega*Omega;
+    Matrix3d I = Matrix3d::Identity();
+    Matrix3d R;
+
+    double eps = 0.000001;
+    if (theta<eps)
+    {
+        R = (I + Omega + 0.5*Omega2);
+    }
+    else
+    {
+        R = cos(theta)*I + sin(theta)*skew(a) + (1-cos(theta))*aa;
+    }
+    return R;
+  }
+
+  Vector3d Log(const Matrix3d& R)
+  {
+    Vector3d omega;
+    double d = 0.5*(R(0,0)+R(1,1)+R(2,2)-1);
+    Matrix3d Omega;
+
+    double eps = 0.00001;
+    Matrix3d I = Matrix3d::Identity();
+
+    if (d>1-eps)
+    {
+        omega=0.5*deltaR(R);
+    }
+    else
+    {
+        double theta = acos(d);
+        omega = theta/(2*sqrt(1-d*d))*deltaR(R);
+    }
+    return omega;        
+
+  }
 

@@ -13,14 +13,12 @@
 
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/Imu.h>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
-#include <irp_sen_msgs/encoder.h>
-#include <irp_sen_msgs/imu.h>
-#include <irp_sen_msgs/fog_3axis.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -45,7 +43,6 @@
 #include "Thirdparty/g2o/g2o/core/block_solver.h"
 #include "Thirdparty/g2o/g2o/core/optimization_algorithm_levenberg.h"
 #include "Thirdparty/g2o/g2o/solvers/linear_solver_eigen.h"
-#include "Thirdparty/g2o/g2o/types/types_six_dof_expmap.h"
 #include "Thirdparty/g2o/g2o/core/robust_kernel_impl.h"
 #include "Thirdparty/g2o/g2o/solvers/linear_solver_dense.h"
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
@@ -54,6 +51,7 @@
 #include <liblas/reader.hpp>
 
 #include "MapPublisher.h"
+#include "ImuState.h"
 
 #ifndef ENCODER_RESOLUTION
 #define ENCODER_RESOLUTION 4096
@@ -77,23 +75,26 @@
 
 using namespace std;
 using namespace Eigen;
+using namespace g2o;
 
 class CamLocalization
 {
 public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),velo_global(new pcl::PointCloud<pcl::PointXYZ>),
-    fakeTimeStamp(0),frameID(0),
+    fakeTimeStamp(0),frameID(0), prev_time(0.0),
 //    mode(0),scale(0.42553191),//scale(0.7),
     mode(1),scale(0.32),//0.472
-    Velo_received(false),Left_received(false),Right_received(false), octree(128.0f)
+    Velo_received(false),Left_received(false),Right_received(false), Imu_recieved(false),
+    octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
         
         //Set Subscriber
         sub_veloptcloud = nh.subscribe("/kitti/velodyne_points", 1, &CamLocalization::VeloPtsCallback, this);
-        sub_encoder = nh.subscribe("/kitti/encoder_count", 10, &CamLocalization::EncoderCallback, this);
-        sub_fog = nh.subscribe("/kitti/fog", 10, &CamLocalization::FogCallback, this);
+        sub_imu = nh.subscribe("/kitti/imu", 10, &CamLocalization::ImuCallback, this);
+//        sub_encoder = nh.subscribe("/kitti/encoder_count", 10, &CamLocalization::EncoderCallback, this);
+//        sub_fog = nh.subscribe("/kitti/fog", 10, &CamLocalization::FogCallback, this);
         sub_leftimg = it->subscribeCamera("/kitti/left_image", 10,&CamLocalization::LeftImgCallback, this);
         sub_rightimg = it->subscribeCamera("/kitti/right_image", 10,&CamLocalization::RightImgCallback, this);         
         
@@ -113,12 +114,6 @@ public:
         base_line = 0.482;
 
         data_path_ = "/media/youngji/storagedevice/naver_data/20180411_kitti";
-//        data_path_ = "/home/irap/data/20180125_kitti";
-//        data_path_ = "/home/irap/data/20171120_kitti";
-
-//        read_poses("poses.txt");
-//        cout<<"Pose loading is completed"<<endl;
-//        cout.precision(20);
 
     }
     ~CamLocalization(){
@@ -146,11 +141,9 @@ private:
     ros::NodeHandle nh;
     image_transport::ImageTransport *it;
     ros::Subscriber sub_veloptcloud;
-    ros::Subscriber sub_encoder;
-    ros::Subscriber sub_fog;
+    ros::Subscriber sub_imu;
     image_transport::CameraSubscriber sub_leftimg;
     image_transport::CameraSubscriber sub_rightimg;
-//    ros::Subscriber sub_caminfo;
     tf::TransformListener tlistener;
 
     //for broadcast    
@@ -161,22 +154,18 @@ private:
     int64_t end_time;    
 
     //input data
+
+    //pt clouds
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_raw;
     pcl::PointCloud<pcl::PointXYZ>::Ptr velo_global;
     pcl::PointCloud<pcl::PointXYZI>::Ptr velo_xyzi;
-    int64_t prev_enc_left;
-    int64_t prev_enc_right;
-    double dL;
-    double dR;
-    Vector3d fog_angles;
-    Matrix4d update_angular_pose;
     pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
+
+    //image
     cv::Mat left_image;
     cv::Mat right_image;
     cv::Mat ref_image;
-//    cv::Mat ref_igx;
-//    cv::Mat ref_igy;
     cv::Mat ref_depth;
     cv::Mat ref_depth_info;
     float* ref_container;
@@ -196,6 +185,13 @@ private:
     float* depth_gradientX;
     float* depth_gradientY;
     float* depth_info;
+
+    //Imu
+    ImuState prev_imu;
+    ImuState cur_imu;
+    double prev_time;
+    Vector3d w_prev;
+    Vector3d a_prev;
 
     //input transform    
     tf::StampedTransform ctv;
@@ -229,14 +225,14 @@ private:
 
     //Callbacks
     void VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
-    void EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg);
-    void FogCallback(const irp_sen_msgs::fog_3axis::ConstPtr& msg);
+    void ImuCallback(const sensor_msgs::Imu::ConstPtr& msg);
     void LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void RightImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg);
     void CamInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);
     bool Velo_received; 
     bool Left_received; 
     bool Right_received;
+    bool Imu_recieved;
     int8_t mode;
     void read_poses(std::string fname); 
     void write_poses(std::string fname, Matrix4d saved_pose); 

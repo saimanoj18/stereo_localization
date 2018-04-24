@@ -33,12 +33,14 @@
 namespace g2o {
   using namespace Eigen;
 
-  inline Matrix3d skew(const Vector3d&v);
+  inline Matrix3d skew(const Vector3d& v);
   inline Vector3d deltaR(const Matrix3d& R);
   inline Vector2d project(const Vector3d&);
   inline Vector3d project(const Vector4d&);
   inline Vector3d unproject(const Vector2d&);
   inline Vector4d unproject(const Vector3d&);
+  inline Matrix3d Exp(const Vector3d& omega);
+  inline Vector3d Log(const Matrix3d& R);
 
 #include "se3_ops.hpp"
 

@@ -107,7 +107,7 @@ void CamLocalization::Refresh()
     }
     
     if(mode ==1) Velo_received = true;
-
+    Matrix4d GT_prev = GT_pose;
 
     if(Velo_received && Left_received && Right_received)
     {
@@ -177,13 +177,6 @@ void CamLocalization::Refresh()
 
         }
 
-//        std::string depth_file;
-//        depth_file =  "./depth/"+std::to_string(frameID-1)+".jpg";
-//        save_colormap(depth_image, depth_file,0,30);
-
-//        cv::imshow("depth_image", depth_image);
-//        cv::waitKey(3);
-//        cv::moveWindow("depth_image", 50,20);
 
 
 
@@ -192,16 +185,17 @@ void CamLocalization::Refresh()
         }
         if(frameID>1){                   
 
-            bool success_imu;
-            success_imu = tlistener.waitForTransform("/kitti/World", "/kitti/IMU", ros::Time(0), ros::Duration(0.1));
-            if (success_imu) {
-                tlistener.lookupTransform("/kitti/World", "/kitti/IMU", ros::Time(0), wtb);
-                Eigen::Affine3d e_temp;
-                tf::transformTFToEigen(wtb, e_temp);
-                update_pose.matrix() = e_temp.matrix(); 
-            }            
-            update_pose = cTv*update_pose*cTv.inverse();
+//            bool success_imu;
+//            success_imu = tlistener.waitForTransform("/kitti/World", "/kitti/IMU", ros::Time(0), ros::Duration(0.1));
+//            if (success_imu) {
+//                tlistener.lookupTransform("/kitti/World", "/kitti/IMU", ros::Time(0), wtb);
+//                Eigen::Affine3d e_temp;
+//                tf::transformTFToEigen(wtb, e_temp);
+//                update_pose.matrix() = e_temp.matrix(); 
+//            }            
+//            update_pose = cTv*update_pose*cTv.inverse();
 
+//            update_pose = GT_prev.inverse()*GT_pose;
 
             /////////////////////////depth gradient generation/////////////////////////////
             //depth gradient
@@ -220,7 +214,7 @@ void CamLocalization::Refresh()
                 //depth info
                 float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
                 if (!isfinite(info_denom)) depth_info[i] = 0;
-                else if (info_denom<0.01) depth_info[i] = 0;
+                else if (info_denom<0.001) depth_info[i] = 0;
                 else depth_info[i] = 100.0/info_denom;
 
                 //cloud plot
@@ -393,55 +387,32 @@ void CamLocalization::VeloPtsCallback(const sensor_msgs::PointCloud2::ConstPtr& 
     }
 }
 
-void CamLocalization::EncoderCallback(const irp_sen_msgs::encoder::ConstPtr& msg)
+void CamLocalization::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 {
-    int64_t cur_enc_left = msg->left_count;
-    int64_t cur_enc_right = msg->right_count;
+    Vector3d w, a;
+    w << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
+    a << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
 
-    if(frameID >0 ){
-        int64_t L_diff = cur_enc_left - prev_enc_left;
-        int64_t R_diff = cur_enc_right - prev_enc_right;
-        dL = ((double)L_diff/((double)ENCODER_RESOLUTION)) * LEFT_DIAMETER * M_PI;
-        dR = ((double)R_diff/((double)ENCODER_RESOLUTION)) * RIGHT_DIAMETER * M_PI;
-//        double dist = 0.5*(dL+dR);        
-//        double dth = (dR-dL)/ VEHICLE_THREAD;
-//        double dx = dist * cos(dth);
-//        double dy = dist * sin(dth); 
-//        update_pose = Matrix4d::Identity();
-//        update_pose(0,3) = dx;
-//        update_pose(1,3) = dy;
-//        AngleAxisd heading(dth,Eigen::Vector3d::UnitZ());
-//        update_pose.block<3,3>(0,0) = heading.toRotationMatrix();
-//        cout<<update_pose<<endl;
-//        update_pose = cTv*update_pose*cTv.inverse();
-
+    if(Imu_recieved == false)
+    {
+        Vector3d a2;
+        a2 = a;
+        a2(3) = a2(3) - 9.8;
+        prev_imu.set_biases(w,a2);
+        cur_imu.set_biases(w,a2);
+        Imu_recieved = true;
     }
-    prev_enc_left = cur_enc_left;
-    prev_enc_right = cur_enc_right;
-        
+    else
+    {
+        double delta_t = msg->header.stamp.toSec()-prev_time;
+        cur_imu.update_all(w_prev, a_prev, delta_t);
+    }
+    prev_time = msg->header.stamp.toSec();
+    w_prev = w;
+    a_prev = a;
+
 }
 
-void CamLocalization::FogCallback(const irp_sen_msgs::fog_3axis::ConstPtr& msg)
-{
-    fog_angles<< msg->d_roll, msg->d_pitch, msg->d_yaw;
-//    if(frameID >0 ){
-//        AngleAxisd roll(cur_imu(0), Vector3d::UnitX());
-//        AngleAxisd pitch(cur_imu(1), Vector3d::UnitY());
-//        AngleAxisd yaw(0, Vector3d::UnitZ());
-//        Matrix3d cur_mat = (yaw*pitch*roll).matrix();
-//    
-//        AngleAxisd p_roll(prev_imu(0), Vector3d::UnitX());
-//        AngleAxisd p_pitch(prev_imu(1), Vector3d::UnitY());
-//        AngleAxisd p_yaw(0, Vector3d::UnitZ());
-//        Matrix3d prev_mat = (p_yaw*p_pitch*p_roll).matrix();
-//        
-//        update_angular_pose = Matrix4d::Identity();
-//        update_angular_pose.block<3,3>(0,0) = prev_mat.inverse()*cur_mat;
-
-//    }
-//    prev_imu = cur_imu;
-    
-}
 
 void CamLocalization::LeftImgCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr & infomsg)
 {
