@@ -81,6 +81,9 @@ namespace g2o {
         const VertexImu* v2 = static_cast<const VertexImu*>(_vertices[1]);
         ImuState currrent = v2->estimate();
         _error = currrent.compute_error(_measurement, v1->estimate());
+        _information<< 1000; 
+        return_idx = -1; 
+        return 1;
       }
 
       virtual void linearizeOplus();

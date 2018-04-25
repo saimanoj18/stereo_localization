@@ -46,6 +46,23 @@ namespace g2o {
     return true;
   }
 
+  void EdgeImu::linearizeOplus()
+  {
+    VertexImu* vi = static_cast<VertexImu*>(_vertices[0]);
+    ImuState Imu_i = vi->estimate();
+    VertexImu* vj = static_cast<VertexImu*>(_vertices[1]);
+    ImuState Imu_j = vj->estimate();
+
+    _jacobianOplusXi.block<3,15>(0,0) = Imu_j.Jacobian_Ri(_measurement, Imu_i);
+    _jacobianOplusXi.block<3,15>(3,0) = Imu_j.Jacobian_vi(Imu_i);
+    _jacobianOplusXi.block<3,15>(6,0) = Imu_j.Jacobian_ti(Imu_i);
+
+    _jacobianOplusXj.block<3,15>(0,0) = Imu_j.Jacobian_Rj(_measurement, Imu_i);
+    _jacobianOplusXj.block<3,15>(3,0) = Imu_j.Jacobian_vj(Imu_i);
+    _jacobianOplusXj.block<3,15>(6,0) = Imu_j.Jacobian_tj(Imu_i);
+  }
+
+
   void EdgeImuProjectXYZD::linearizeOplus()
   {
     _jacobianOplus[0].resize(1,15);

@@ -156,6 +156,75 @@ namespace g2o {
             return ret;
         }
 
+        Matrix<double,3,15> Jacobian_Ri(const ImuState& measurement, const ImuState& stateA)
+        {
+            Matrix<double,3,15> ret;
+            ret.setZero();
+            double time_ij = time_-stateA.time_;
+            Matrix3d exp1 = Exp(R_bg*delta_bg_);
+            Matrix3d R_ab = stateA.R_.inverse()*R_;
+            Matrix3d res = exp1.inverse()*measurement.R_.inverse()*R_ab;
+            
+            ret.block<3,3>(0,0) = -left_Jacobian(res)*R_.inverse()*stateA.R_;
+            return ret;
+        }
+        Matrix<double,3,15> Jacobian_Rj(const ImuState& measurement, const ImuState& stateA)
+        {
+            Matrix<double,3,15> ret;
+            ret.setZero();
+            double time_ij = time_-stateA.time_;
+            Matrix3d exp1 = Exp(R_bg*delta_bg_);
+            Matrix3d R_ab = stateA.R_.inverse()*R_;
+            Matrix3d res = exp1.inverse()*measurement.R_.inverse()*R_ab;
+            
+            ret.block<3,3>(0,0) = left_Jacobian(res);
+            ret.block<3,3>(0,9) = -left_Jacobian(res)*res.inverse()*right_Jacobian(Exp(R_bg*delta_bg_))*R_bg;
+            return ret;
+        }
+        Matrix<double,3,15> Jacobian_vi(const ImuState& stateA)
+        {
+            Matrix<double,3,15> ret;
+            ret.setZero();
+            double time_ij = time_-stateA.time_;
+            
+            ret.block<3,3>(0,0) = skew(stateA.R_.inverse()*(v_-stateA.v_-gravity*time_ij));
+            ret.block<3,3>(0,3) = -stateA.R_.inverse();
+            return ret;
+        }
+        Matrix<double,3,15> Jacobian_vj(const ImuState& stateA)
+        {
+            Matrix<double,3,15> ret;
+            ret.setZero();
+            
+            ret.block<3,3>(0,3) = stateA.R_.inverse();
+            ret.block<3,3>(0,9) = -v_bg;
+            ret.block<3,3>(0,12) = -v_ba;
+            return ret;
+        }
+        Matrix<double,3,15> Jacobian_ti(const ImuState& stateA)
+        {
+            Matrix<double,3,15> ret;
+            ret.setZero();
+            double time_ij = time_-stateA.time_;
+            
+            ret.block<3,3>(0,0) = skew(stateA.R_.inverse()*(t_-stateA.t_-stateA.v_*time_ij-0.5*gravity*time_ij*time_ij));
+            ret.block<3,3>(0,3) = -stateA.R_.inverse()*time_ij;
+            ret.block<3,3>(0,6) = -Matrix3d::Identity();
+
+            return ret;
+        }
+        Matrix<double,3,15> Jacobian_tj(const ImuState& stateA)
+        {
+            Matrix<double,3,15> ret;
+            ret.setZero();
+            double time_ij = time_-stateA.time_;
+            
+            ret.block<3,3>(0,6) = stateA.R_.inverse()*R_;
+            ret.block<3,3>(0,9) = -t_bg;
+            ret.block<3,3>(0,12) = -t_ba;
+            return ret;
+        }
+
         Vector3d map (const Vector3d& xyz) const {
             return (R_*xyz) + t_;
         }
