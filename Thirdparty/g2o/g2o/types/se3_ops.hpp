@@ -129,3 +129,27 @@
 
   }
 
+  Matrix3d right_Jacobian(const Matrix3d& R)
+  {
+    Vector3d xi = Log(R);
+    Matrix3d Jr;
+    Matrix3d I = Matrix3d::Identity();
+    double theta = xi.norm();
+    double theta2 = theta*theta;
+    double theta3 = theta*theta*theta;
+    Jr = I - (1-cos(theta))/theta2*skew(xi) + (theta - sin(theta))/theta3*skew(xi)*skew(xi);
+    return Jr;
+  }
+
+  Matrix3d left_Jacobian(const Matrix3d& R)
+  {
+    Vector3d xi = Log(R);
+    Matrix3d Jl;
+    Matrix3d I = Matrix3d::Identity();
+    double theta = xi.norm();
+    double theta2 = theta*theta;
+    Jl = I + 0.5*skew(xi) + (1.0/theta2 + (1+cos(theta))/(2*theta*sin(theta)) )*skew(xi)*skew(xi);
+    return Jl;    
+
+  }
+

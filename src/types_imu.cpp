@@ -102,7 +102,7 @@ namespace g2o {
 
         Matrix<double,1,4> dm;
         dm<<0,0,1.0f,0;
-        Matrix<double,1,6> delta = -(dm-D_u*K_p)*Tp_note;
+        Matrix<double,1,6> delta = -(dm-D_u*K_p)*vj->cTv*Tp_note;
         _jacobianOplus[0].setZero();
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
@@ -197,11 +197,11 @@ namespace g2o {
         Tp_notej(3,4) = 0;
         Tp_notej(3,5) = 0;
 
-        Matrix<double,1,6> delta = -imagei_u*K_pi*Tp_notei;
+        Matrix<double,1,6> delta = -imagei_u*K_pi*vi->cTv*Tp_notei;
         _jacobianOplus[0].setZero();
         _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
         _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
-        delta = imagej_u*K_pj*Tp_notej;
+        delta = imagej_u*K_pj*vj->cTv*Tp_notej;
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
         _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);

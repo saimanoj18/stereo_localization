@@ -47,6 +47,8 @@ namespace g2o {
       return res;
     }
 
+    Matrix4d cTv;
+
     const float* Image;
     const float* ImageGx;
     const float* ImageGy;
@@ -77,8 +79,8 @@ namespace g2o {
       {
         const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[0]);
         const VertexImu* v2 = static_cast<const VertexImu*>(_vertices[1]);
-//        Vector3d updated_g = v1->estimate().bias_g_ - _measurement.bias_g_;
-//        Vector3d e1 = Log(Exp(_measurement.J_Rg*updated_g).transpose()*_measurement.R_.transpose()*v1->estimate().R_.inverse()*v2->estimate.R_);
+        ImuState currrent = v2->estimate();
+        _error = currrent.compute_error(_measurement, v1->estimate());
       }
 
       virtual void linearizeOplus();

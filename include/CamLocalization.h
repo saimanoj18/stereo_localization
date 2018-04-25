@@ -85,7 +85,7 @@ public:
     fakeTimeStamp(0),frameID(0), prev_time(0.0),
 //    mode(0),scale(0.42553191),//scale(0.7),
     mode(1),scale(0.32),//0.472
-    Velo_received(false),Left_received(false),Right_received(false), Imu_recieved(false),
+    Velo_received(false),Left_received(false),Right_received(false), Imu_recieved(false), Imu_restart(true),
     octree(128.0f)
     {
         it = new image_transport::ImageTransport(nh);
@@ -233,6 +233,7 @@ private:
     bool Left_received; 
     bool Right_received;
     bool Imu_recieved;
+    bool Imu_restart;
     int8_t mode;
     void read_poses(std::string fname); 
     void write_poses(std::string fname, Matrix4d saved_pose); 

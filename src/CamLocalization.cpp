@@ -254,11 +254,6 @@ void CamLocalization::Refresh()
                     count++;
                     }
                 }
-//                //filtering
-//                pcl::VoxelGrid<pcl::PointXYZ> sor;
-//                sor.setInputCloud (velo_raw);
-//                sor.setLeafSize (0.01f, 0.01f, 0.01f);
-//                sor.filter (*velo_raw);
 
             }
 
@@ -269,11 +264,8 @@ void CamLocalization::Refresh()
             optimized_T = Matrix4d::Identity();
             optimized_T = Optimization_combined(ref_container, src_container, image_info, image_gradientX, image_gradientY, depth, depth_info, depth_gradientX, depth_gradientY, update_pose);
             cout<<optimized_T<<endl;
-//            update_pose = update_pose*optimized_T.inverse();
             EST_pose = EST_pose*optimized_T.inverse();
-            
-//            if(mode == 0)debugImage(depth_image,dgx_image,dgy_image,depth_info);//save debug images
-//            if(mode == 1)save_colormap(depth_image, "image_depth2.jpg",0,30);
+            Imu_restart = true;
 
 
         }
@@ -401,15 +393,16 @@ void CamLocalization::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
         prev_imu.set_biases(w,a2);
         cur_imu.set_biases(w,a2);
         Imu_recieved = true;
+        cur_imu.update_all(w,a);
     }
     else
     {
         double delta_t = msg->header.stamp.toSec()-prev_time;
-        cur_imu.update_all(w_prev, a_prev, delta_t);
+        cur_imu.update_all(w, a, delta_t, Imu_restart);
+        Imu_restart = false;
     }
     prev_time = msg->header.stamp.toSec();
-    w_prev = w;
-    a_prev = a;
+
 
 }
 

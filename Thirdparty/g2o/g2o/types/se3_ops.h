@@ -41,6 +41,8 @@ namespace g2o {
   inline Vector4d unproject(const Vector3d&);
   inline Matrix3d Exp(const Vector3d& omega);
   inline Vector3d Log(const Matrix3d& R);
+  inline Matrix3d right_Jacobian(const Matrix3d& R);
+  inline Matrix3d left_Jacobian(const Matrix3d& R);
 
 #include "se3_ops.hpp"
 
