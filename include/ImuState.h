@@ -232,6 +232,22 @@ namespace g2o {
         Vector3d map_inv (const Vector3d& xyz) const {
             return R_.inverse()*(xyz - t_);
         }
+
+        void check_print()
+        {
+
+            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
+                std::cout<<*it<<std::endl;
+            }
+            std::cout<<"finish"<<std::endl;
+        }
+
+        Matrix4d get_pose(){
+            Matrix4d ret;
+            ret.block<3,3>(0,0) = R_;
+            ret.block<3,1>(0,3) = t_;
+            return ret;
+        }
      
     private:
         double time_;//sec
