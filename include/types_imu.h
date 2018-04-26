@@ -72,6 +72,12 @@ namespace g2o {
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       EdgeImu();
 
+      void initOcclusionimg()
+      {
+      }
+      void clearMeasurement()
+      {
+      }
       void computeError()
       {
       }
@@ -200,11 +206,12 @@ namespace g2o {
 
   };
 
-  class EdgeImuProjectXYZ : public  BaseMultiEdge<1, double>
+  class EdgeImuProjectXYZ : public BaseMultiEdge<1, double>
   {
     public:
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       EdgeImuProjectXYZ();
+
       virtual bool read(std::istream& is);
       virtual bool write(std::ostream& os) const;
 
@@ -299,7 +306,7 @@ namespace g2o {
 
       }
 
-   virtual void linearizeOplus();
+      virtual void linearizeOplus();
 
   };
 

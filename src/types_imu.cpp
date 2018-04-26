@@ -6,6 +6,20 @@ namespace g2o {
   {
   }
 
+  EdgeImu::EdgeImu() : BaseBinaryEdge<9, ImuState, VertexImu, VertexImu>()
+  {
+  }
+
+  EdgeImuProjectXYZD::EdgeImuProjectXYZD() : BaseMultiEdge<1, double>()
+  {
+    resize(3);
+  }
+
+  EdgeImuProjectXYZ::EdgeImuProjectXYZ() : BaseMultiEdge<1, double>()
+  {
+    resize(3);
+  }
+
 
   bool VertexImu::read(std::istream& is)
   {

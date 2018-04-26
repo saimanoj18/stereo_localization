@@ -51,7 +51,8 @@
 #include <liblas/reader.hpp>
 
 #include "MapPublisher.h"
-#include "ImuState.h"
+
+#include "types_imu.h"
 
 #ifndef ENCODER_RESOLUTION
 #define ENCODER_RESOLUTION 4096
@@ -75,14 +76,14 @@
 
 using namespace std;
 using namespace Eigen;
-using namespace g2o;
+//using namespace g2o;
 
 class CamLocalization
 {
 public:
     CamLocalization():
     velo_raw(new pcl::PointCloud<pcl::PointXYZ>),velo_cloud(new pcl::PointCloud<pcl::PointXYZ>),velo_xyzi(new pcl::PointCloud<pcl::PointXYZI>),velo_global(new pcl::PointCloud<pcl::PointXYZ>),
-    fakeTimeStamp(0),frameID(0), prev_time(0.0),
+    frameID(0), prev_time(0.0),
 //    mode(0),scale(0.42553191),//scale(0.7),
     mode(1),scale(0.32),//0.472
     Velo_received(false),Left_received(false),Right_received(false), Imu_recieved(false), Imu_restart(true),
@@ -162,36 +163,39 @@ private:
     pcl::PointCloud<pcl::PointXYZI>::Ptr velo_xyzi;
     pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree;
 
+    int frameID;
+    std::string data_path_;
+
     //image
     cv::Mat left_image;
     cv::Mat right_image;
-    cv::Mat ref_image;
-    cv::Mat ref_depth;
-    cv::Mat ref_depth_info;
-    float* ref_container;
-    float* src_container;
-    float* image_gradientX;
-    float* image_gradientY;
-    float* image_info;
-    double fakeTimeStamp;
-    int frameID;
-    std::string data_path_;
-    cv::Mat igx_image, igy_image;
     cv::Mat left_scaled;
+    cv::Mat ref;
+
+    cv::Mat depth_image;
+    cv::Mat ref_igx_image, ref_igy_image;
+    cv::Mat igx_image, igy_image;
     cv::Mat dgx_image, dgy_image; 
     cv::Mat disp;
-    cv::Mat cur_depth_info;
+
+    float* ref_container;
+    float* src_container;
+    float* ref_image_gradientX;
+    float* ref_image_gradientY;
+    float* image_gradientX;
+    float* image_gradientY;
+    float* ref_image_info;
+    float* image_info;
+
     float* depth;
     float* depth_gradientX;
     float* depth_gradientY;
     float* depth_info;
 
     //Imu
-    ImuState prev_imu;
-    ImuState cur_imu;
+    g2o::ImuState prev_imu;
+    g2o::ImuState cur_imu;
     double prev_time;
-    Vector3d w_prev;
-    Vector3d a_prev;
 
     //input transform    
     tf::StampedTransform ctv;
@@ -239,7 +243,7 @@ private:
     void write_poses(std::string fname, Matrix4d saved_pose); 
 
     //main algorithms
-    Matrix4d Optimization(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose);  
+    Matrix4d Optimization(const float* ref, const float* ref_image_var, const float* ref_i_gradientX, const float* ref_i_gradientY, const float* image, const float* image_var, const float* i_gradientX, const float* i_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY);  
     Matrix4d Optimization_combined(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose);  
     
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);
