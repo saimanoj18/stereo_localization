@@ -106,11 +106,11 @@ namespace g2o {
 
       void initOcclusionimg()
       {
-        const VertexImu* v2 = static_cast<const VertexImu*>(_vertices[1]);
-        for(size_t i=0; i<v2->_width*v2->_height;i++)
+        const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
+        for(size_t i=0; i<v1->_width*v1->_height;i++)
         {
-            v2->occ_image[i] = -1.0f;
-            v2->occ_idx[i] = -1;
+            v1->occ_image[i] = -1.0f;
+            v1->occ_idx[i] = -1;
         }
       }
       void clearMeasurement()
@@ -128,8 +128,11 @@ namespace g2o {
         const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
         const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
         const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[2]);
+        Matrix3d cTv_R = v1->cTv.block<3,3>(0,0);
+        Vector3d cTv_t = v1->cTv.block<3,1>(0,3);
 
-        Vector2d Ipos( v1->cam_map(v1->estimate().map_inv(v2->estimate())) );
+        Vector3d map_trans = cTv_R*v1->estimate().map_inv(v2->estimate())+cTv_t;
+        Vector2d Ipos( v1->cam_map(map_trans) );
         int idx = (int)(((int)Ipos[1])*v1->_width+((int)Ipos[0]));
 
         if (Ipos[0]>=v1->_width || Ipos[0]<0 || Ipos[1]>=v1->_height || Ipos[1]<0 )
@@ -157,7 +160,7 @@ namespace g2o {
         else
         {
           Matrix<double, 1, 1> e1(v1->Depth[idx]);
-          Matrix<double, 1, 1> obsz(v1->estimate().map_inv(v2->estimate())[2]);
+          Matrix<double, 1, 1> obsz(map_trans[2]);
           _information<< v1->DepthInfo[idx];
           _error = obsz-e1;
 
@@ -180,7 +183,7 @@ namespace g2o {
             }  
           }
           else{
-              if(_error[0]>10.0f || _error[0]<-10.0f){// && _measurement == 0.0f)
+              if(_error[0]>3.0f || _error[0]<-3.0f){// && _measurement == 0.0f)
                   _error<< 0.0f;
                   _measurement = 0.0f;
                   return_idx = -1; 
@@ -231,11 +234,13 @@ namespace g2o {
         const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
         const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
         const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[2]);
+        Matrix3d cTv_R = v1->cTv.block<3,3>(0,0);
+        Vector3d cTv_t = v1->cTv.block<3,1>(0,3);
 
-        Vector2d Ipos( v0->cam_map(v0->estimate().map_inv(v2->estimate())) );
+        Vector2d Ipos( v0->cam_map( cTv_R*v0->estimate().map_inv(v2->estimate())+cTv_t) );
         int i_idx = (int)(((int)Ipos[1])*v0->_width+((int)Ipos[0]));
 
-        Vector2d Jpos( v1->cam_map(v1->estimate().map_inv(v2->estimate())) );
+        Vector2d Jpos( v1->cam_map( cTv_R*v1->estimate().map_inv(v2->estimate())+cTv_t) );
         int j_idx = (int)(((int)Jpos[1])*v1->_width+((int)Jpos[0]));
 
         if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))

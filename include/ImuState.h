@@ -52,6 +52,15 @@ namespace g2o {
         void set_velocity(Vector3d v){v_ = v;}
         void set_biases(Vector3d bias_g, Vector3d bias_a){bias_g_ = bias_g; bias_a_ = bias_a;}
 
+
+        void set_from_opt (const ImuState& other){
+            R_ = other.R_;
+            v_ = other.v_;
+            t_ = other.t_;
+            bias_g_ = other.bias_g_;
+            bias_a_ = other.bias_a_;
+        }
+
         void update_all(Vector3d w, Vector3d a)
         {
             w_ = w;
@@ -66,13 +75,11 @@ namespace g2o {
             Matrix3d R_update = Exp(delta_t*(w_-bias_g_));
 
             //update time_
-            time_ = time_ + delta_t;
-
+            time_ = time_ + delta_t;        
             //update R, v, t
             R_ = R_i * R_update;
-            v_ = v_ + gravity*delta_t + R_i*(a_-bias_a_)*delta_t;
+            v_ = v_i + gravity*delta_t + R_i*(a_-bias_a_)*delta_t;
             t_ = t_ + v_i*delta_t + 0.5*gravity*d2 + 0.5*R_i*(a_-bias_a_)*d2;
-
             //save R for bias jacobians
             for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
                 *it = *it * R_update;
@@ -235,15 +242,16 @@ namespace g2o {
 
         void check_print()
         {
-
-            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
-                std::cout<<*it<<std::endl;
-            }
-            std::cout<<"finish"<<std::endl;
+            std::cout<<bias_a_<<std::endl;
+            std::cout<<bias_g_<<std::endl;
+//            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
+//                std::cout<<*it<<std::endl;
+//            }
+//            std::cout<<"finish"<<std::endl;
         }
 
         Matrix4d get_pose(){
-            Matrix4d ret;
+            Matrix4d ret = Matrix4d::Identity();
             ret.block<3,3>(0,0) = R_;
             ret.block<3,1>(0,3) = t_;
             return ret;

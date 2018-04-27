@@ -87,13 +87,17 @@ namespace g2o {
     ImuState Imu_j = vj->estimate();
     VertexSBAPointXYZ* v_point = static_cast<VertexSBAPointXYZ*>(_vertices[2]);
     Vector3d xyz = v_point->estimate();
-    Vector3d xyz_trans = Imu_j.map_inv(xyz);
 
-    Vector2d Ipos(vj->cam_map(xyz_trans));
+    Matrix3d cTv_R = vj->cTv.block<3,3>(0,0);
+    Vector3d cTv_t = vj->cTv.block<3,1>(0,3);
+
+    Vector3d xyz_trans = Imu_j.map_inv(xyz);
+    Vector3d xyz_trans2 = cTv_R*Imu_j.map_inv(xyz)+cTv_t;
+    Vector2d Ipos(vj->cam_map(xyz_trans2));
     int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
 
-    if (_measurement<0.1f)
+    if (_measurement<0.1)
     {
         _jacobianOplus[0].setZero();
         _jacobianOplus[1].setZero();
@@ -104,25 +108,24 @@ namespace g2o {
 
         Matrix<double,1,2> D_u;
         Matrix<double,2,4> K_p;
-        Matrix<double,4,6> p_note;
 
         D_u(0,0) = vj->DepthGx[idx];
         D_u(0,1) = vj->DepthGy[idx];
 
 
-        K_p(0,0) = vj->_focal_length1[0]/xyz_trans[2];
+        K_p(0,0) = vj->_focal_length1[0]/xyz_trans2[2];
         K_p(0,1) = 0;
-        K_p(0,2) = -vj->_focal_length1[0]*xyz_trans[0]/(xyz_trans[2]*xyz_trans[2]);
+        K_p(0,2) = -vj->_focal_length1[0]*xyz_trans2[0]/(xyz_trans2[2]*xyz_trans2[2]);
         K_p(0,3) = 0;//vj->_principle_point1[0];//
         K_p(1,0) = 0;
-        K_p(1,1) = vj->_focal_length1[1]/xyz_trans[2];
-        K_p(1,2) = -vj->_focal_length1[1]*xyz_trans[1]/(xyz_trans[2]*xyz_trans[2]);
+        K_p(1,1) = vj->_focal_length1[1]/xyz_trans2[2];
+        K_p(1,2) = -vj->_focal_length1[1]*xyz_trans2[1]/(xyz_trans2[2]*xyz_trans2[2]);
         K_p(1,3) = 0;//vj->_principle_point1[1];//
 
 
         Matrix<double,4,6> Tp_note;
         Tp_note.block<3,3>(0,0) = Matrix3d::Identity();
-        Tp_note.block<3,3>(0,3) = -1*skew(xyz_trans);
+        Tp_note.block<3,3>(0,3) = -skew(xyz_trans);
         Tp_note(3,0) = 0;
         Tp_note(3,1) = 0;
         Tp_note(3,2) = 0;
@@ -130,14 +133,14 @@ namespace g2o {
         Tp_note(3,4) = 0;
         Tp_note(3,5) = 0;
 
-
         Matrix<double,1,4> dm;
-        dm<<0,0,1.0f,0;
+        dm<<0.0,0.0,1.0,0.0;
         Matrix<double,1,6> delta = -(dm-D_u*K_p)*vj->cTv*Tp_note;
         _jacobianOplus[0].setZero();
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
         _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
+//        std::cout<<_jacobianOplus[1]<<std::endl;
         _jacobianOplus[2].setZero();
          
     }
@@ -161,10 +164,13 @@ namespace g2o {
     VertexSBAPointXYZ* v_point = static_cast<VertexSBAPointXYZ*>(_vertices[2]);
     Vector3d xyz = v_point->estimate();
 
-    Vector2d Ipos(vi->cam_map(Imu_i.map_inv(xyz)));
+    Matrix3d cTv_R = vj->cTv.block<3,3>(0,0);
+    Vector3d cTv_t = vj->cTv.block<3,1>(0,3);
+
+    Vector2d Ipos(vi->cam_map(cTv_R*Imu_i.map_inv(xyz)+cTv_t));
     int i_idx = (int)(((int)Ipos[1])*vi->_width+((int)Ipos[0]));
 
-    Vector2d Jpos(vj->cam_map(Imu_j.map_inv(xyz)));
+    Vector2d Jpos(vj->cam_map(cTv_R*Imu_j.map_inv(xyz)+cTv_t));
     int j_idx = (int)(((int)Jpos[1])*vj->_width+((int)Jpos[0]));
 
 
@@ -189,13 +195,14 @@ namespace g2o {
         imagej_u(0,1) = vj->ImageGy[j_idx];
 
         Vector3d xyz_trans = Imu_i.map_inv(xyz);
-        K_pi(0,0) = vi->_focal_length1[0]/xyz_trans[2];
+        Vector3d xyz_trans2 = cTv_R*xyz_trans+cTv_t;        
+        K_pi(0,0) = vi->_focal_length1[0]/xyz_trans2[2];
         K_pi(0,1) = 0;
-        K_pi(0,2) = -vi->_focal_length1[0]*xyz_trans[0]/(xyz_trans[2]*xyz_trans[2]);
+        K_pi(0,2) = -vi->_focal_length1[0]*xyz_trans2[0]/(xyz_trans2[2]*xyz_trans2[2]);
         K_pi(0,3) = 0;
         K_pi(1,0) = 0;
-        K_pi(1,1) = vi->_focal_length1[1]/xyz_trans[2];
-        K_pi(1,2) = -vi->_focal_length1[1]*xyz_trans[1]/(xyz_trans[2]*xyz_trans[2]);
+        K_pi(1,1) = vi->_focal_length1[1]/xyz_trans2[2];
+        K_pi(1,2) = -vi->_focal_length1[1]*xyz_trans2[1]/(xyz_trans2[2]*xyz_trans2[2]);
         K_pi(1,3) = 0;
 
         Matrix<double,4,6> Tp_notei;
@@ -209,13 +216,14 @@ namespace g2o {
         Tp_notei(3,5) = 0;
 
         xyz_trans = Imu_j.map_inv(xyz);
-        K_pj(0,0) = vj->_focal_length1[0]/xyz_trans[2];
+        xyz_trans2 = cTv_R*xyz_trans+cTv_t;  
+        K_pj(0,0) = vj->_focal_length1[0]/xyz_trans2[2];
         K_pj(0,1) = 0;
-        K_pj(0,2) = -vj->_focal_length1[0]*xyz_trans[0]/(xyz_trans[2]*xyz_trans[2]);
+        K_pj(0,2) = -vj->_focal_length1[0]*xyz_trans2[0]/(xyz_trans2[2]*xyz_trans2[2]);
         K_pj(0,3) = 0;
         K_pj(1,0) = 0;
-        K_pj(1,1) = vj->_focal_length1[1]/xyz_trans[2];
-        K_pj(1,2) = -vj->_focal_length1[1]*xyz_trans[1]/(xyz_trans[2]*xyz_trans[2]);
+        K_pj(1,1) = vj->_focal_length1[1]/xyz_trans2[2];
+        K_pj(1,2) = -vj->_focal_length1[1]*xyz_trans2[1]/(xyz_trans2[2]*xyz_trans2[2]);
         K_pj(1,3) = 0;
 
         Matrix<double,4,6> Tp_notej;
@@ -230,8 +238,8 @@ namespace g2o {
 
         Matrix<double,1,6> delta = -imagei_u*K_pi*vi->cTv*Tp_notei;
         _jacobianOplus[0].setZero();
-        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
-        _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
+//        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
+//        _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
         delta = imagej_u*K_pj*vj->cTv*Tp_notej;
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
