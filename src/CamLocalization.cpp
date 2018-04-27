@@ -551,7 +551,7 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
                     g2o::EdgeImu* e_imu = new g2o::EdgeImu();
                     e_imu->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                     e_imu->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
-                    e_imu->setMeasurement(cur_imu);
+                    e_imu->setMeasurement(cur_imu-prev_imu);
                     info_9by9 << 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0;
                     e_imu->setInformation(info_9by9.asDiagonal());
                     e_imu->setRobustKernel(rk1);
