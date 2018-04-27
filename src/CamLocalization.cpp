@@ -517,6 +517,7 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
     Matrix<double,3,1>pts;
     int numpts = velo_raw->points.size();
     Matrix<double, 1, 1> info;
+    Matrix<double, 9, 1> info_9by9;
     info << 0.0f;
 
     int index = 2;
@@ -542,34 +543,41 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
                     vPoint->setId(index);
                     vPoint->setFixed(true);
                     optimizer.addVertex(vPoint);
-                    cout<<"check2"<<endl;
+
+                    g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
+                    rk1->setDelta(deltaHuber);
+
+                    // Set Imu Edge
+                    g2o::EdgeImu* e_imu = new g2o::EdgeImu();
+                    e_imu->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                    e_imu->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
+                    e_imu->setMeasurement(cur_imu);
+                    info_9by9 << 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0;
+                    e_imu->setInformation(info_9by9.asDiagonal());
+                    e_imu->setRobustKernel(rk1);
+                    optimizer.addEdge(e_imu);
+
                     // Set Image Edge
                     g2o::EdgeImuProjectXYZ* e_image = new g2o::EdgeImuProjectXYZ();
-                    cout<<"check2"<<endl;
-                    e_image->vertices()[0] = vImui;//->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-                    cout<<"check3"<<endl;
-//                    e_image->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
-//                    e_image->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
-//                    cout<<"check3"<<endl;
-//                    e_image->setMeasurement(1.0);
-//                    info << image_var[i_idx];
-//                    e_image->setInformation(info);
-//                    g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
-//                    rk1->setDelta(deltaHuber);
-//                    e_image->setRobustKernel(rk1);
-//                    optimizer.addEdge(e_image);
+                    e_image->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                    e_image->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
+                    e_image->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
+                    e_image->setMeasurement(1.0);
+                    info << image_var[i_idx];
+                    e_image->setInformation(info);
+                    e_image->setRobustKernel(rk1);
+                    optimizer.addEdge(e_image);
 
-//                    // Set Depth Edge
-//                    g2o::EdgeSim3ProjectXYZD* e_depth = new g2o::EdgeSim3ProjectXYZD();
-//                    e_depth->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
-//                    e_depth->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-//                    e_depth->setMeasurement(1.0f);
-//                    info << idepth_var[i_idx];
-//                    e_depth->setInformation(info);
-//                    g2o::RobustKernelHuber* rk2 = new g2o::RobustKernelHuber;
-//                    rk2->setDelta(deltaHuber);
-//                    e_depth->setRobustKernel(rk2);
-//                    optimizer.addEdge(e_depth);
+                    // Set Depth Edge
+                    g2o::EdgeImuProjectXYZD* e_depth = new g2o::EdgeImuProjectXYZD();
+                    e_depth->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                    e_depth->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
+                    e_depth->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
+                    e_depth->setMeasurement(1.0f);
+                    info << idepth_var[i_idx];
+                    e_depth->setInformation(info);
+                    e_depth->setRobustKernel(rk1);
+                    optimizer.addEdge(e_depth);
                     
                     index++;
 
