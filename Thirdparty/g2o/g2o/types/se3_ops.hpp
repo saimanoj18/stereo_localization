@@ -137,7 +137,10 @@
     double theta = xi.norm();
     double theta2 = theta*theta;
     double theta3 = theta*theta*theta;
-    Jr = I - (1-cos(theta))/theta2*skew(xi) + (theta - sin(theta))/theta3*skew(xi)*skew(xi);
+
+    double eps = 0.00001;
+    if(theta<eps)Jr = I;
+    else Jr = I - (1-cos(theta))/theta2*skew(xi) + (theta - sin(theta))/theta3*skew(xi)*skew(xi);
     return Jr;
   }
 
@@ -148,7 +151,10 @@
     Matrix3d I = Matrix3d::Identity();
     double theta = xi.norm();
     double theta2 = theta*theta;
-    Jl = I + 0.5*skew(xi) + (1.0/theta2 + (1+cos(theta))/(2*theta*sin(theta)) )*skew(xi)*skew(xi);
+
+    double eps = 0.00001;
+    if(theta<eps)Jl = I;
+    else Jl = I + 0.5*skew(xi) + (1.0/theta2 + (1+cos(theta))/(2*theta*sin(theta)) )*skew(xi)*skew(xi);
     return Jl;    
 
   }

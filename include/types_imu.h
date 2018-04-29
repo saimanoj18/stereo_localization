@@ -11,6 +11,7 @@
 namespace g2o {
 
   using namespace Eigen;
+  using namespace std;
 
   class VertexImu : public BaseVertex<15, ImuState>
   {
@@ -32,6 +33,7 @@ namespace g2o {
 
       setEstimatePrev(estimate());
       ImuState s(update);
+//      s.check_print();
       setEstimate(estimate()*s);
     }
 
@@ -87,6 +89,7 @@ namespace g2o {
         const VertexImu* v2 = static_cast<const VertexImu*>(_vertices[1]);
         ImuState currrent = v2->estimate();
         _error = currrent.compute_error(_measurement, v1->estimate());
+//        cout<<_error<<endl;
 //        _information<< 1000; 
         return_idx = -1; 
         return 1;
@@ -243,8 +246,13 @@ namespace g2o {
         Vector2d Jpos( v1->cam_map( cTv_R*v1->estimate().map_inv(v2->estimate())+cTv_t) );
         int j_idx = (int)(((int)Jpos[1])*v1->_width+((int)Jpos[0]));
 
+        ImuState imu_i = v0->estimate();
         if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
         {
+//        cout<<"check 1"<<endl;
+//        imu_i.check_print();
+//        cout<<v2->estimate()<<endl;
+//        cout<<v0->estimate().map_inv(v2->estimate())<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -252,6 +260,7 @@ namespace g2o {
         }
         else if (Ipos[0]>=v0->_width || Ipos[0]<0 || Ipos[1]>=v0->_height || Ipos[1]<0 )
         {
+//        cout<<"check 2"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -259,6 +268,7 @@ namespace g2o {
         }
         else if (Jpos[0]>=v1->_width || Jpos[0]<0 || Jpos[1]>=v1->_height || Jpos[1]<0 )
         {
+//        cout<<"check 3"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -266,12 +276,15 @@ namespace g2o {
         }
         else if(!std::isfinite(v0->Image[i_idx]))
         {
+//        cout<<"check 4"<<endl;
           _error<< 0.0f;
+          _measurement = 0.0f;
           return_idx = -1;
           return 0;
         }
         else if(!std::isfinite(v1->Image[j_idx]))
         {
+//        cout<<"check 5"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -279,6 +292,7 @@ namespace g2o {
         }
         else if(!std::isfinite(v0->ImageGx[i_idx]) || !std::isfinite(v0->ImageGy[i_idx]))
         {
+//        cout<<"check 6"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -286,6 +300,7 @@ namespace g2o {
         }
         else if(!std::isfinite(v1->ImageGx[j_idx]) || !std::isfinite(v1->ImageGy[j_idx]))
         {
+//        cout<<"check 7"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -293,6 +308,7 @@ namespace g2o {
         }
         else if(_measurement<0)
         {
+//        cout<<"check 8"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -305,7 +321,7 @@ namespace g2o {
           _information<< v0->ImageInfo[i_idx] + v1->ImageInfo[j_idx];//1000;// 
           _error = e1-obsz;
           _measurement = 1.0f;
-          return_idx = -1; 
+          return_idx = -1;
           return 1;
         }
 

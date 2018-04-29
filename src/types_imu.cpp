@@ -74,6 +74,8 @@ namespace g2o {
     _jacobianOplusXj.block<3,15>(0,0) = Imu_j.Jacobian_Rj(_measurement, Imu_i);
     _jacobianOplusXj.block<3,15>(3,0) = Imu_j.Jacobian_vj(Imu_i);
     _jacobianOplusXj.block<3,15>(6,0) = Imu_j.Jacobian_tj(Imu_i);
+
+//    cout<<_jacobianOplusXj<<endl;
   }
 
 
@@ -105,7 +107,7 @@ namespace g2o {
     }
     else
     {
-
+//        cout<<_error<<endl;
         Matrix<double,1,2> D_u;
         Matrix<double,2,4> K_p;
 
@@ -124,8 +126,8 @@ namespace g2o {
 
 
         Matrix<double,4,6> Tp_note;
-        Tp_note.block<3,3>(0,0) = Matrix3d::Identity();
-        Tp_note.block<3,3>(0,3) = -skew(xyz_trans);
+        Tp_note.block<3,3>(0,0) = -skew(xyz_trans);
+        Tp_note.block<3,3>(0,3) = Matrix3d::Identity();
         Tp_note(3,0) = 0;
         Tp_note(3,1) = 0;
         Tp_note(3,2) = 0;
@@ -140,8 +142,9 @@ namespace g2o {
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
         _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
-//        std::cout<<_jacobianOplus[1]<<std::endl;
         _jacobianOplus[2].setZero();
+
+//        cout<<_jacobianOplus[1]<<endl;
          
     }
 
@@ -182,6 +185,7 @@ namespace g2o {
     }
     else
     {
+//        cout<<_error<<endl;
         Matrix<double,1,2> imagei_u;        
         Matrix<double,1,2> imagej_u;
         Matrix<double,2,4> K_pi;
@@ -206,8 +210,8 @@ namespace g2o {
         K_pi(1,3) = 0;
 
         Matrix<double,4,6> Tp_notei;
-        Tp_notei.block<3,3>(0,0) = Matrix3d::Identity();
-        Tp_notei.block<3,3>(0,3) = -1*skew(xyz_trans);
+        Tp_notei.block<3,3>(0,0) = -1*skew(xyz_trans);
+        Tp_notei.block<3,3>(0,3) = Matrix3d::Identity();
         Tp_notei(3,0) = 0;
         Tp_notei(3,1) = 0;
         Tp_notei(3,2) = 0;
@@ -227,8 +231,8 @@ namespace g2o {
         K_pj(1,3) = 0;
 
         Matrix<double,4,6> Tp_notej;
-        Tp_notej.block<3,3>(0,0) = Matrix3d::Identity();
-        Tp_notej.block<3,3>(0,3) = -1*skew(xyz_trans);
+        Tp_notej.block<3,3>(0,0) = -1*skew(xyz_trans);
+        Tp_notej.block<3,3>(0,3) = Matrix3d::Identity();
         Tp_notej(3,0) = 0;
         Tp_notej(3,1) = 0;
         Tp_notej(3,2) = 0;
@@ -238,13 +242,15 @@ namespace g2o {
 
         Matrix<double,1,6> delta = -imagei_u*K_pi*vi->cTv*Tp_notei;
         _jacobianOplus[0].setZero();
-//        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
-//        _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
+        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
+        _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
         delta = imagej_u*K_pj*vj->cTv*Tp_notej;
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
         _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
         _jacobianOplus[2].setZero();
+
+//        cout<<_jacobianOplus[1]<<endl;
          
     }
 

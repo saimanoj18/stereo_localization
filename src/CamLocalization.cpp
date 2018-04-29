@@ -166,7 +166,7 @@ void CamLocalization::Refresh()
             float igy = igy_image.at<float>(v,u)/32.0f;
             float info_nom = sqrt(igx*igx+igy*igy);
             if(!isfinite(info_nom))image_info[i] = 0;
-            else image_info[i] = 10.0f*sqrt(igx*igx+igy*igy);       
+            else image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);       
 
      
 
@@ -184,7 +184,7 @@ void CamLocalization::Refresh()
                 igy = ref_igy_image.at<float>(v,u)/32.0f;
                 info_nom = sqrt(igx*igx+igy*igy);
                 if(!isfinite(info_nom))ref_image_info[i] = 0;
-                else ref_image_info[i] = 10.0f*sqrt(igx*igx+igy*igy);
+                else ref_image_info[i] = 1000.0f*sqrt(igx*igx+igy*igy);
             } 
 
         }
@@ -214,7 +214,7 @@ void CamLocalization::Refresh()
                 //depth info
                 float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
                 if (!isfinite(info_denom)) depth_info[i] = 0;
-                else if (info_denom<0.01) depth_info[i] = 0;
+                else if (info_denom<0.0001) depth_info[i] = 0;
                 else depth_info[i] = 10.0/info_denom;
 
                 //cloud plot
@@ -516,12 +516,26 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
     vImuj->occ_idx = occ_idx2;
     optimizer.addVertex(vImuj);
 
+//    prev_imu.check_print();
+//    cur_imu.check_print();
+
+    g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
+    rk1->setDelta(deltaHuber);
+    Matrix<double, 9, 1> info_9by9;
+    // Set Imu Edge
+    g2o::EdgeImu* e_imu = new g2o::EdgeImu();
+    e_imu->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+    e_imu->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
+    e_imu->setMeasurement(cur_imu-prev_imu);
+    info_9by9 << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
+    e_imu->setInformation(info_9by9.asDiagonal()*1.0);
+    e_imu->setRobustKernel(rk1);
+    optimizer.addEdge(e_imu);
 
     //Set map point vertices
     Matrix<double,3,1>pts;
     int numpts = velo_raw->points.size();
     Matrix<double, 1, 1> info;
-    Matrix<double, 9, 1> info_9by9;
     info << 0.0f;
     Matrix3d cTv_R = cTv.block<3,3>(0,0);
     Vector3d cTv_t = cTv.block<3,1>(0,3);
@@ -541,47 +555,32 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
         Vector3d pts_transformed = cTv_R*vImui->estimate().map_inv(pts)+cTv_t;
 
         if ( pts_transformed[2]>0.0f && pts_transformed[2]<matching_thres){ 
-//                if (Ipos[0]<vImui->_width && Ipos[0]>=0 && Ipos[1]<vImui->_height && Ipos[1]>=0 && idepth_var[i_idx]>10.0){
-                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && idepth_var[j_idx]>5.0) 
+                // SET PointXYZ VERTEX
+                g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
+                vPoint->setEstimate(pts);
+                vPoint->setId(index);
+                vPoint->setFixed(true);
+                optimizer.addVertex(vPoint);
+                if (Ipos[0]<vImui->_width && Ipos[0]>=0 && Ipos[1]<vImui->_height && Ipos[1]>=0 && idepth_var[i_idx]>2000.0)
                 {
-                    // SET PointXYZ VERTEX
-                    g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
-                    vPoint->setEstimate(pts);
-                    vPoint->setId(index);
-                    vPoint->setFixed(true);
-                    optimizer.addVertex(vPoint);
-
-//                    g2o::RobustKernelHuber* rk1 = new g2o::RobustKernelHuber;
-//                    rk1->setDelta(deltaHuber);
-
-//                    g2o::RobustKernelHuber* rk2 = new g2o::RobustKernelHuber;
-//                    rk2->setDelta(deltaHuber);
-
+                    // Set Image Edge
+                    g2o::RobustKernelHuber* rk2 = new g2o::RobustKernelHuber;
+                    rk2->setDelta(deltaHuber);
+                    g2o::EdgeImuProjectXYZ* e_image = new g2o::EdgeImuProjectXYZ();
+                    e_image->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                    e_image->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
+                    e_image->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
+                    e_image->setMeasurement(1.0f);
+                    info << image_var[i_idx];
+                    e_image->setInformation(info);
+                    e_image->setRobustKernel(rk2);
+                    optimizer.addEdge(e_image);
+                }
+                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && idepth_var[j_idx]>5.0)
+                {
+                    // Set Depth Edge
                     g2o::RobustKernelHuber* rk3 = new g2o::RobustKernelHuber;
                     rk3->setDelta(deltaHuber);
-
-//                    // Set Imu Edge
-//                    g2o::EdgeImu* e_imu = new g2o::EdgeImu();
-//                    e_imu->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-//                    e_imu->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
-//                    e_imu->setMeasurement(cur_imu-prev_imu);
-//                    info_9by9 << 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0;
-//                    e_imu->setInformation(info_9by9.asDiagonal());
-//                    e_imu->setRobustKernel(rk1);
-//                    optimizer.addEdge(e_imu);
-
-//                    // Set Image Edge
-//                    g2o::EdgeImuProjectXYZ* e_image = new g2o::EdgeImuProjectXYZ();
-//                    e_image->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
-//                    e_image->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
-//                    e_image->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
-//                    e_image->setMeasurement(1.0f);
-//                    info << image_var[i_idx];
-//                    e_image->setInformation(info);
-//                    e_image->setRobustKernel(rk2);
-//                    optimizer.addEdge(e_image);
-
-                    // Set Depth Edge
                     g2o::EdgeImuProjectXYZD* e_depth = new g2o::EdgeImuProjectXYZD();
                     e_depth->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
                     e_depth->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(1)));               
@@ -591,10 +590,9 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
                     e_depth->setInformation(info);
                     e_depth->setRobustKernel(rk3);
                     optimizer.addEdge(e_depth);
-                    
-                    index++;
 
                 }
+                index++;
 //                }
         }
 
@@ -696,7 +694,7 @@ Matrix4d CamLocalization::Optimization_combined(const float* ref, const float* i
         
         
         if ( pts[2]>0.0f && pts[2]<matching_thres){ 
-                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>100.0) // && image_var[i_idx]>100.0)
+                if (Ipos[0]<vSim3->_width && Ipos[0]>=0 && Ipos[1]<vSim3->_height && Ipos[1]>=0 && idepth_var[i_idx]>200.0) // && image_var[i_idx]>100.0)
                 {
                     // SET PointXYZ VERTEX
                     g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();

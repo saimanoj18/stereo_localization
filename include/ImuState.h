@@ -9,6 +9,7 @@
 namespace g2o {
 
     using namespace Eigen;
+    using namespace std;
 
     typedef  Eigen::Matrix <double, 15, 1> Vector15d;
 
@@ -16,7 +17,8 @@ namespace g2o {
     {
     public:
         ImuState():time_(0.0),R_(Matrix3d::Identity()),t_(Vector3d::Zero()),v_(Vector3d::Zero()),bias_g_(Vector3d::Zero()),bias_a_(Vector3d::Zero()),
-        delta_ba_(Vector3d::Zero()),delta_bg_(Vector3d::Zero())
+        delta_ba_(Vector3d::Zero()),delta_bg_(Vector3d::Zero()),
+        v_bg(Matrix3d::Zero()),v_ba(Matrix3d::Zero()),t_bg(Matrix3d::Zero()),t_ba(Matrix3d::Zero())
         {
             gravity<<0,0,-9.8;
         }
@@ -92,7 +94,7 @@ namespace g2o {
             R_for_b.push_back(Matrix3d::Identity());
             R_bg = Matrix3d::Zero();
             for (std::pair<std::vector<Matrix3d>::iterator, std::vector<Matrix3d>::iterator> i(R_for_b.begin(), Jr_for_b.begin());i.first != R_for_b.end();++i.first, ++i.second){
-                R_bg = R_bg - (*i.first) * (*i.second);
+                R_bg = R_bg - (*i.first).inverse() * (*i.second);
             }
             R_for_b.pop_back();
             v_ba = v_ba - R_ij*delta_t;
@@ -109,6 +111,10 @@ namespace g2o {
                 R_ij = R_update;
                 delta_ba_ = Vector3d::Zero();
                 delta_bg_ = Vector3d::Zero();
+                v_ba = Matrix3d::Zero();
+                v_bg = Matrix3d::Zero();
+                t_ba = Matrix3d::Zero();
+                t_bg = Matrix3d::Zero();
             }
     
             w_ = w;
@@ -151,7 +157,9 @@ namespace g2o {
             Matrix3d exp1 = Exp(R_bg*delta_bg_);
             Matrix3d R_ab = stateA.R_.inverse()*R_;
             ret.block<3,1>(0,0) = Log(exp1.inverse()*measurement.R_.inverse()*R_ab);
-
+//            cout<<"R_bg "<<R_bg<<endl;
+//            cout<<"delta_bg_ "<<delta_bg_<<endl;
+//            cout<<exp1.inverse()*measurement.R_.inverse()*R_ab<<endl;
             Vector3d v_ab = stateA.R_*(v_ - stateA.v_ - gravity*time_ij);
             Vector3d v_bgba = v_bg*delta_bg_ + v_ba*delta_ba_;
             ret.block<3,1>(3,0) = v_ab - measurement.v_ - v_bgba;
@@ -242,8 +250,8 @@ namespace g2o {
 
         void check_print()
         {
-            std::cout<<bias_a_<<std::endl;
-            std::cout<<bias_g_<<std::endl;
+            std::cout<<R_<<std::endl;
+            std::cout<<t_<<std::endl;
 //            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
 //                std::cout<<*it<<std::endl;
 //            }
