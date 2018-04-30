@@ -20,6 +20,9 @@ namespace g2o {
     resize(3);
   }
 
+  EdgeImuPhotometric::EdgeImuPhotometric() : BaseBinaryEdge<1, Vector2d, VertexImu, VertexImu>()
+  {
+  }
 
   bool VertexImu::read(std::istream& is)
   {

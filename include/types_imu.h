@@ -371,42 +371,49 @@ namespace g2o {
         if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;            
         }
         else if (Ipos[0]>=v0->_width || Ipos[0]<0 || Ipos[1]>=v0->_height || Ipos[1]<0 )
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;
         }
         else if (Jpos[0]>=v1->_width || Jpos[0]<0 || Jpos[1]>=v1->_height || Jpos[1]<0 )
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;
         }
         else if(!std::isfinite(v0->Image[i_idx]))
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;
         }
         else if(!std::isfinite(v1->Image[j_idx]))
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;
         }
         else if(!std::isfinite(v0->ImageGx[i_idx]) || !std::isfinite(v0->ImageGy[i_idx]))
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;
         }
         else if(!std::isfinite(v1->ImageGx[j_idx]) || !std::isfinite(v1->ImageGy[j_idx]))
         {
           _error<< 0.0f;
+          _information<<0.0f;
           return_idx = -1;
           return 0;
         }
