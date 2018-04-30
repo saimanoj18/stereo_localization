@@ -215,7 +215,7 @@ namespace g2o {
             ret.setZero();
             
             ret.block<3,3>(0,3) = stateA.R_.inverse();
-            ret.block<3,3>(0,9) = -v_bg;
+            ret.block<3,3>(0,9)  = -v_bg;
             ret.block<3,3>(0,12) = -v_ba;
             return ret;
         }
@@ -238,7 +238,7 @@ namespace g2o {
             double time_ij = time_-stateA.time_;
             
             ret.block<3,3>(0,6) = stateA.R_.inverse()*R_;
-            ret.block<3,3>(0,9) = -t_bg;
+            ret.block<3,3>(0,9)  = -t_bg;
             ret.block<3,3>(0,12) = -t_ba;
             return ret;
         }

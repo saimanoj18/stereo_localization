@@ -37,15 +37,24 @@ namespace g2o {
       setEstimate(estimate()*s);
     }
 
-    Vector2d _principle_point1, _principle_point2;
-    Vector2d _focal_length1, _focal_length2;
+    Vector2d _principle_point;
+    Vector2d _focal_length;
     double _width, _height;
 
     Vector2d cam_map(const Vector3d & v) const
     {
       Vector2d res;
-      res[0] = v[0]*_focal_length1[0]/v[2] + _principle_point1[0];
-      res[1] = v[1]*_focal_length1[1]/v[2] + _principle_point1[1];
+      res[0] = v[0]*_focal_length[0]/v[2] + _principle_point[0];
+      res[1] = v[1]*_focal_length[1]/v[2] + _principle_point[1];
+      return res;
+    }
+
+    Vector3d cam_map_inv(const Vector2d & v, const double d) const
+    {
+      Vector3d res;
+      res[0] = d/_focal_length[0]*(v[0]-_principle_point[0]);
+      res[1] = d/_focal_length[1]*(v[1]-_principle_point[1]);
+      res[2] = d;
       return res;
     }
 
@@ -249,10 +258,6 @@ namespace g2o {
         ImuState imu_i = v0->estimate();
         if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
         {
-//        cout<<"check 1"<<endl;
-//        imu_i.check_print();
-//        cout<<v2->estimate()<<endl;
-//        cout<<v0->estimate().map_inv(v2->estimate())<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -260,7 +265,6 @@ namespace g2o {
         }
         else if (Ipos[0]>=v0->_width || Ipos[0]<0 || Ipos[1]>=v0->_height || Ipos[1]<0 )
         {
-//        cout<<"check 2"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -268,7 +272,6 @@ namespace g2o {
         }
         else if (Jpos[0]>=v1->_width || Jpos[0]<0 || Jpos[1]>=v1->_height || Jpos[1]<0 )
         {
-//        cout<<"check 3"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -276,7 +279,6 @@ namespace g2o {
         }
         else if(!std::isfinite(v0->Image[i_idx]))
         {
-//        cout<<"check 4"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -284,7 +286,6 @@ namespace g2o {
         }
         else if(!std::isfinite(v1->Image[j_idx]))
         {
-//        cout<<"check 5"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -292,7 +293,6 @@ namespace g2o {
         }
         else if(!std::isfinite(v0->ImageGx[i_idx]) || !std::isfinite(v0->ImageGy[i_idx]))
         {
-//        cout<<"check 6"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -300,7 +300,6 @@ namespace g2o {
         }
         else if(!std::isfinite(v1->ImageGx[j_idx]) || !std::isfinite(v1->ImageGy[j_idx]))
         {
-//        cout<<"check 7"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -308,7 +307,6 @@ namespace g2o {
         }
         else if(_measurement<0)
         {
-//        cout<<"check 8"<<endl;
           _error<< 0.0f;
           _measurement = 0.0f;
           return_idx = -1;
@@ -331,6 +329,102 @@ namespace g2o {
 
   };
 
+  class EdgeImuPhotometric : public BaseBinaryEdge<1, Vector2d, VertexImu, VertexImu>
+  {
+    public:
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+      EdgeImuPhotometric();
+
+      virtual bool read(std::istream& is);
+      virtual bool write(std::ostream& os) const;
+
+      void initOcclusionimg()
+      {
+      }
+      void clearMeasurement()
+      {
+      }
+
+      void computeError()
+      {
+      }
+    
+      int computeError2(int& return_idx)
+      {
+        const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
+        const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
+        Matrix3d cTv_R = v1->cTv.block<3,3>(0,0);
+        Vector3d cTv_t = v1->cTv.block<3,1>(0,3);
+
+        Vector2d Ipos = _measurement;
+        int i_idx = (int)(((int)Ipos[1])*v0->_width+((int)Ipos[0]));
+
+        Vector3d xyz_i = v0->cam_map_inv(Ipos,v0->Depth[i_idx]);
+        xyz_i = cTv_R.inverse()*(xyz_i-cTv_t);
+        Vector3d xyz_j = v1->estimate().map_inv(v0->estimate().map(xyz_i));
+        xyz_j = cTv_R*xyz_j+cTv_t;
+
+        Vector2d Jpos( v1->cam_map(xyz_j) );
+        int j_idx = (int)(((int)Jpos[1])*v1->_width+((int)Jpos[0]));
+
+        ImuState imu_i = v0->estimate();
+        if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;            
+        }
+        else if (Ipos[0]>=v0->_width || Ipos[0]<0 || Ipos[1]>=v0->_height || Ipos[1]<0 )
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if (Jpos[0]>=v1->_width || Jpos[0]<0 || Jpos[1]>=v1->_height || Jpos[1]<0 )
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v0->Image[i_idx]))
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v1->Image[j_idx]))
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v0->ImageGx[i_idx]) || !std::isfinite(v0->ImageGy[i_idx]))
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else if(!std::isfinite(v1->ImageGx[j_idx]) || !std::isfinite(v1->ImageGy[j_idx]))
+        {
+          _error<< 0.0f;
+          return_idx = -1;
+          return 0;
+        }
+        else
+        {
+          Matrix<double, 1, 1> e1(v0->Image[i_idx]);
+          Matrix<double, 1, 1> obsz(v1->Image[j_idx]);
+          _information<< v0->ImageInfo[i_idx];// + v1->ImageInfo[j_idx];//1000;// 
+          _error = e1-obsz;
+          return_idx = -1;
+          return 1;
+        }
+
+      }
+
+      virtual void linearizeOplus();
+
+  };
 
 
 }//end namespace

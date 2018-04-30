@@ -214,8 +214,8 @@ void CamLocalization::Refresh()
                 //depth info
                 float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
                 if (!isfinite(info_denom)) depth_info[i] = 0;
-                else if (info_denom<0.0001) depth_info[i] = 0;
-                else depth_info[i] = 1000.0/info_denom;
+                else if (info_denom<0.01) depth_info[i] = 0;
+                else depth_info[i] = 10.0/info_denom;
 
                 //cloud plot
                 if(isfinite(depth[i])){
@@ -391,15 +391,14 @@ void CamLocalization::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
     if(Imu_recieved == false)
     {
         Vector3d bias_a, bias_g;
-//        bias_g = w;
-//        bias_a = a;
-//        bias_a(2) = bias_a(2) - 9.8;
-        bias_g = Vector3d::Zero();
-        bias_a << -0.31188, 0.0816053, 0.0788528;
+        bias_g = w;
+        bias_a = a;
+        bias_a(2) = bias_a(2) - 9.8;
+//        bias_g = Vector3d::Zero();
+//        bias_a << -0.31188, 0.0816053, 0.0788528;
+
         prev_imu.set_biases(bias_g,bias_a);
         cur_imu.set_biases(bias_g,bias_a);    
-//        prev_imu.set_biases(Vector3d::Zero(),Vector3d::Zero());
-//        cur_imu.set_biases(Vector3d::Zero(),Vector3d::Zero());
         Imu_recieved = true;
         cur_imu.update_all(w,a);
     }
@@ -475,10 +474,10 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
     vImui->setEstimate(prev_imu);
     vImui->setId(0);
     vImui->setFixed(false);
-    vImui->_principle_point1[0] = K(0,2);
-    vImui->_principle_point1[1] = K(1,2);
-    vImui->_focal_length1[0] = K(0,0);
-    vImui->_focal_length1[1] = K(1,1);
+    vImui->_principle_point[0] = K(0,2);
+    vImui->_principle_point[1] = K(1,2);
+    vImui->_focal_length[0] = K(0,0);
+    vImui->_focal_length[1] = K(1,1);
     vImui->_width = width;
     vImui->_height = height;
     vImui->Image = ref;
@@ -500,10 +499,10 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
     vImuj->setEstimate(cur_imu);
     vImuj->setId(1);
     vImuj->setFixed(false);
-    vImuj->_principle_point1[0] = K(0,2);
-    vImuj->_principle_point1[1] = K(1,2);
-    vImuj->_focal_length1[0] = K(0,0);
-    vImuj->_focal_length1[1] = K(1,1);
+    vImuj->_principle_point[0] = K(0,2);
+    vImuj->_principle_point[1] = K(1,2);
+    vImuj->_focal_length[0] = K(0,0);
+    vImuj->_focal_length[1] = K(1,1);
     vImuj->_width = width;
     vImuj->_height = height;
     vImuj->Image = image;
@@ -583,7 +582,7 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
                     optimizer.addEdge(e_image);
                 }
 
-//                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && idepth_var[j_idx]>5.0)
+//                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && idepth_var[j_idx]>0.0)
 //                {
 //                    // Set Depth Edge
 //                    g2o::RobustKernelHuber* rk3 = new g2o::RobustKernelHuber;
@@ -616,7 +615,7 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
     prev_imu.set_time_from_prev(cur_imu);
     cur_imu.set_from_opt(resImu);
     cur_imu.check_print();
-    Matrix4d result_mat = resImu.get_pose();
+    Matrix4d result_mat = cur_imu.get_pose();
 
     delete [] occ_container;
     delete [] occ_idx;
