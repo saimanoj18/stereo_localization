@@ -318,7 +318,7 @@ namespace g2o {
         {
           Matrix<double, 1, 1> e1(v0->Image[i_idx]);
           Matrix<double, 1, 1> obsz(v1->Image[j_idx]);
-          _information<< v0->ImageInfo[i_idx] + v1->ImageInfo[j_idx];//1000;// 
+          _information<< v0->ImageInfo[i_idx];// + v1->ImageInfo[j_idx];//1000;// 
           _error = e1-obsz;
           _measurement = 1.0f;
           return_idx = -1;

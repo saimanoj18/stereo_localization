@@ -17,7 +17,7 @@ namespace g2o {
     {
     public:
         ImuState():time_(0.0),R_(Matrix3d::Identity()),t_(Vector3d::Zero()),v_(Vector3d::Zero()),bias_g_(Vector3d::Zero()),bias_a_(Vector3d::Zero()),
-        delta_ba_(Vector3d::Zero()),delta_bg_(Vector3d::Zero()),
+        delta_ba_(Vector3d::Zero()),delta_bg_(Vector3d::Zero()),R_ij(Matrix3d::Identity()),
         v_bg(Matrix3d::Zero()),v_ba(Matrix3d::Zero()),t_bg(Matrix3d::Zero()),t_ba(Matrix3d::Zero())
         {
             gravity<<0,0,-9.8;
@@ -33,6 +33,8 @@ namespace g2o {
               delta_bg_[i]=update[i+9];
               delta_ba_[i]=update[i+12]; 
             }
+//            cout<<delta_bg_<<endl;
+//            cout<<delta_ba_<<endl;
 
             R_ = Exp(omega);
             
@@ -62,6 +64,10 @@ namespace g2o {
             bias_g_ = other.bias_g_;
             bias_a_ = other.bias_a_;
         }
+        
+        void set_time_from_prev ( const ImuState& other){
+            time_ = other.time_;
+        } 
 
         void update_all(Vector3d w, Vector3d a)
         {
@@ -82,33 +88,13 @@ namespace g2o {
             R_ = R_i * R_update;
             v_ = v_i + gravity*delta_t + R_i*(a_-bias_a_)*delta_t;
             t_ = t_ + v_i*delta_t + 0.5*gravity*d2 + 0.5*R_i*(a_-bias_a_)*d2;
-            //save R for bias jacobians
-            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
-                *it = *it * R_update;
-            }
-            R_for_b.push_back(R_update);
-            Jr_for_b.push_back(right_Jacobian(R_update)*delta_t);
-            R_ij = R_ij * R_update;
 
-            //update bias jacobians
-            R_for_b.push_back(Matrix3d::Identity());
-            R_bg = Matrix3d::Zero();
-            for (std::pair<std::vector<Matrix3d>::iterator, std::vector<Matrix3d>::iterator> i(R_for_b.begin(), Jr_for_b.begin());i.first != R_for_b.end();++i.first, ++i.second){
-                R_bg = R_bg - (*i.first).inverse() * (*i.second);
-            }
-            R_for_b.pop_back();
-            v_ba = v_ba - R_ij*delta_t;
-            v_bg = v_bg - R_ij*skew(a-bias_a_)*R_bg*delta_t;
-            t_ba = t_ba + v_ba*delta_t - 0.5*R_ij*delta_t*delta_t;
-            t_bg = t_bg + v_bg*delta_t - 0.5*R_ij*skew(a-bias_a_)*R_bg*delta_t*delta_t; 
 
             if(restart){
-
                 //erase R for bias jacobians
                 R_for_b.clear();
                 Jr_for_b.clear();
-                Jr_for_b.push_back(right_Jacobian(R_update)*delta_t);
-                R_ij = R_update;
+                R_ij = Matrix3d::Identity();
                 delta_ba_ = Vector3d::Zero();
                 delta_bg_ = Vector3d::Zero();
                 v_ba = Matrix3d::Zero();
@@ -116,10 +102,38 @@ namespace g2o {
                 t_ba = Matrix3d::Zero();
                 t_bg = Matrix3d::Zero();
             }
+
+            //save R for bias jacobians
+            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
+                *it = *it * R_update;
+            }
+            R_ij = R_ij * R_update;
+
+            //update bias jacobians
+            R_for_b.push_back(Matrix3d::Identity());    
+            Jr_for_b.push_back(right_Jacobian(R_update)*delta_t);
+            R_bg = Matrix3d::Zero();
+            for (std::pair<std::vector<Matrix3d>::iterator, std::vector<Matrix3d>::iterator> i(R_for_b.begin(), Jr_for_b.begin());i.first != R_for_b.end();++i.first, ++i.second){
+                R_bg = R_bg - (*i.first).inverse() * (*i.second);
+            }
+            v_ba = v_ba - R_ij*delta_t;
+            v_bg = v_bg - R_ij*skew(a-bias_a_)*R_bg*delta_t;
+            t_ba = t_ba + v_ba*delta_t - 0.5*R_ij*delta_t*delta_t;
+            t_bg = t_bg + v_bg*delta_t - 0.5*R_ij*skew(a-bias_a_)*R_bg*delta_t*delta_t; 
     
             w_ = w;
             a_ = a;
 
+        }
+
+        //Rj - Ri
+        ImuState operator -(const ImuState& other) const {
+            ImuState ret;
+            double time_ij = time_-other.time_;
+            ret.R_ = other.R_.inverse()*R_;
+            ret.v_ = other.R_.inverse()*(v_-other.v_-gravity*time_ij);
+            ret.t_ = other.R_.inverse()*(t_-other.t_-other.v_*time_ij-0.5*gravity*time_ij*time_ij);
+            return ret;
         }
 
         ImuState operator *(const ImuState& other) const {
@@ -137,16 +151,7 @@ namespace g2o {
             ret.v_bg = v_bg;
             ret.t_ba = t_ba;        
             ret.t_bg = t_bg;
-            return ret;
-        }
 
-        //Rj - Ri
-        ImuState operator -(const ImuState& other) const {
-            ImuState ret;
-            double time_ij = time_-other.time_;
-            ret.R_ = other.R_.inverse()*R_;
-            ret.v_ = other.R_*(v_-other.v_-gravity*time_ij);
-            ret.t_ = other.R_*(t_-other.t_-other.v_*time_ij-0.5*gravity*time_ij*time_ij);
             return ret;
         }
 
@@ -157,14 +162,12 @@ namespace g2o {
             Matrix3d exp1 = Exp(R_bg*delta_bg_);
             Matrix3d R_ab = stateA.R_.inverse()*R_;
             ret.block<3,1>(0,0) = Log(exp1.inverse()*measurement.R_.inverse()*R_ab);
-//            cout<<"R_bg "<<R_bg<<endl;
-//            cout<<"delta_bg_ "<<delta_bg_<<endl;
-//            cout<<exp1.inverse()*measurement.R_.inverse()*R_ab<<endl;
-            Vector3d v_ab = stateA.R_*(v_ - stateA.v_ - gravity*time_ij);
+
+            Vector3d v_ab = stateA.R_.inverse()*(v_ - stateA.v_ - gravity*time_ij);
             Vector3d v_bgba = v_bg*delta_bg_ + v_ba*delta_ba_;
             ret.block<3,1>(3,0) = v_ab - measurement.v_ - v_bgba;
 
-            Vector3d t_ab = stateA.R_*(t_ - stateA.t_ - stateA.v_*time_ij - 0.5*gravity*time_ij*time_ij);
+            Vector3d t_ab = stateA.R_.inverse()*(t_ - stateA.t_ - stateA.v_*time_ij - 0.5*gravity*time_ij*time_ij);
             Vector3d t_bgba = t_bg*delta_bg_ + t_ba*delta_ba_;
             ret.block<3,1>(6,0) = t_ab - measurement.t_ - t_bgba;
 
@@ -250,8 +253,10 @@ namespace g2o {
 
         void check_print()
         {
-            std::cout<<R_<<std::endl;
-            std::cout<<t_<<std::endl;
+//            std::cout<<R_<<std::endl;
+//            std::cout<<t_<<std::endl;
+//            std::cout<<delta_bg_<<std::endl;
+            std::cout<<bias_a_<<std::endl;
 //            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
 //                std::cout<<*it<<std::endl;
 //            }
