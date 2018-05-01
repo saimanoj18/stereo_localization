@@ -203,8 +203,8 @@ void CamLocalization::Refresh()
                 igy = ref_dgy_image.at<float>(v,u)/32.0f;
                 info_nom = sqrt(igx*igx+igy*igy);
                 if (!isfinite(info_nom)) ref_depth_info[i] = 0;
-                else if (info_nom<0.001) ref_depth_info[i] = 0;
-                else ref_depth_info[i] = 10.0/info_nom;
+                else if (info_nom<0.01) ref_depth_info[i] = 0.0;
+                else ref_depth_info[i] = 1.0/info_nom;
             } 
 
         }
@@ -226,8 +226,8 @@ void CamLocalization::Refresh()
             //depth info
             float info_denom = sqrt(depth_gradientX[i]*depth_gradientX[i]+depth_gradientY[i]*depth_gradientY[i]);
             if (!isfinite(info_denom)) depth_info[i] = 0;
-            else if (info_denom<0.001) depth_info[i] = 0;
-            else depth_info[i] = 10.0/info_denom;
+            else if (info_denom<0.01) depth_info[i] = 0.0;
+            else depth_info[i] = 1.0/info_denom;
 
             //cloud plot
             if(isfinite(depth[i])){
@@ -600,7 +600,7 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
                 vPoint->setFixed(true);
                 optimizer.addVertex(vPoint);
 
-                if (Ipos[0]<vImui->_width && Ipos[0]>=0 && Ipos[1]<vImui->_height && Ipos[1]>=0 && image_var[i_idx]>100.0)
+                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && image_var[j_idx]>0.0)
                 {
                     // Set Image Edge
                     g2o::RobustKernelHuber* rk2 = new g2o::RobustKernelHuber;
@@ -611,13 +611,13 @@ Matrix4d CamLocalization::Optimization(const float* ref, const float* ref_image_
                     e_image->setVertex(2, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(index)));
                     e_image->setVertex(3, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(2)));
                     e_image->setMeasurement(1.0f);
-                    info << image_var[i_idx];
+                    info << image_var[j_idx];
                     e_image->setInformation(info);
                     e_image->setRobustKernel(rk2);
                     optimizer.addEdge(e_image);
                 }
 
-//                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && idepth_var[j_idx]>1000.0)
+//                if (Jpos[0]<vImuj->_width && Jpos[0]>=0 && Jpos[1]<vImuj->_height && Jpos[1]>=0 && idepth_var[j_idx]>90.0)
 //                {
 //                    // Set Depth Edge
 //                    g2o::RobustKernelHuber* rk3 = new g2o::RobustKernelHuber;

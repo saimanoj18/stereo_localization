@@ -109,7 +109,8 @@ namespace g2o {
     Matrix3d cTv_R = cTv.block<3,3>(0,0);
     Vector3d cTv_t = cTv.block<3,1>(0,3);
 
-    Vector3d xyz_trans = cTv_R*Imu_j.map_inv(xyz)+cTv_t;
+    Vector3d xyz_pre = Imu_j.map_inv(xyz);
+    Vector3d xyz_trans = cTv_R*xyz_pre+cTv_t;
     Vector2d Ipos(vj->cam_map(xyz_trans));
     int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
@@ -151,13 +152,26 @@ namespace g2o {
         Tp_note(3,4) = 0;
         Tp_note(3,5) = 0;
 
+        Matrix<double,4,6> Tp_noteij;
+        Tp_note.block<3,3>(0,0) = -skew(xyz_pre);
+        Tp_note.block<3,3>(0,3) = Matrix3d::Identity();
+        Tp_note(3,0) = 0;
+        Tp_note(3,1) = 0;
+        Tp_note(3,2) = 0;
+        Tp_note(3,3) = 0;
+        Tp_note(3,4) = 0;
+        Tp_note(3,5) = 0;
+
         Matrix<double,1,4> dm;
         dm<<0.0,0.0,1.0,0.0;
-        Matrix<double,1,6> delta = (dm-D_u*K_p)*Tp_note;
+        Matrix<double,1,6> delta;// = -(dm-D_u*K_p)*cTv*Tp_noteij; 
         _jacobianOplus[0].setZero();
         _jacobianOplus[1].setZero();
+//        _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
+//        _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
         _jacobianOplus[2].setZero();
-        _jacobianOplus[3].setZero();
+        _jacobianOplus[3].setZero();        
+        delta = (dm-D_u*K_p)*Tp_note;
         _jacobianOplus[3].block<1,6>(0,0) = delta;
          
     }
@@ -236,6 +250,16 @@ namespace g2o {
         Tp_notei(3,4) = 0;
         Tp_notei(3,5) = 0;
 
+        Matrix<double,4,6> cTp_notei;
+        Tp_notei.block<3,3>(0,0) = -1*skew(xyz_trans2);
+        Tp_notei.block<3,3>(0,3) = Matrix3d::Identity();
+        Tp_notei(3,0) = 0;
+        Tp_notei(3,1) = 0;
+        Tp_notei(3,2) = 0;
+        Tp_notei(3,3) = 0;
+        Tp_notei(3,4) = 0;
+        Tp_notei(3,5) = 0;
+
         xyz_trans = Imu_j.map_inv(xyz);
         xyz_trans2 = cTv_R*xyz_trans+cTv_t;  
         K_pj(0,0) = vj->_focal_length[0]/xyz_trans2[2];
@@ -257,6 +281,21 @@ namespace g2o {
         Tp_notej(3,4) = 0;
         Tp_notej(3,5) = 0;
 
+        Matrix<double,4,6> cTp_notej;
+        Tp_notei.block<3,3>(0,0) = -1*skew(xyz_trans2);
+        Tp_notei.block<3,3>(0,3) = Matrix3d::Identity();
+        Tp_notei(3,0) = 0;
+        Tp_notei(3,1) = 0;
+        Tp_notei(3,2) = 0;
+        Tp_notei(3,3) = 0;
+        Tp_notei(3,4) = 0;
+        Tp_notei(3,5) = 0;
+
+        Matrix<double,4,6> Tp_noteij;
+        Tp_notej.block<3,3>(0,0) = -1*skew(xyz_trans2);
+        Tp_notej.block<3,3>(0,3) = Matrix3d::Identity();
+ 
+
         Matrix<double,1,6> delta = -imagei_u*K_pi*cTv*Tp_notei;
         _jacobianOplus[0].setZero();
 //        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
@@ -267,8 +306,8 @@ namespace g2o {
         _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
         _jacobianOplus[2].setZero();
         _jacobianOplus[3].setZero();
-
-//        cout<<_jacobianOplus[1]<<endl;
+//        delta = imagei_u*K_pi*cTp_notei-imagej_u*K_pj*cTp_notej;
+//        _jacobianOplus[3].block<1,6>(0,0) = delta;
          
     }
 
