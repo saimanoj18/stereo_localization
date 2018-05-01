@@ -6,6 +6,7 @@
 #include "Thirdparty/g2o/g2o/core/base_binary_edge.h"
 #include "Thirdparty/g2o/g2o/core/base_unary_edge.h"
 #include "Thirdparty/g2o/g2o/types/types_sba.h"
+#include "Thirdparty/g2o/g2o/types/sim3.h"
 #include "ImuState.h"
 
 namespace g2o {
@@ -58,7 +59,6 @@ namespace g2o {
       return res;
     }
 
-    Matrix4d cTv;
 
     const float* Image;
     const float* ImageGx;
@@ -73,6 +73,38 @@ namespace g2o {
     float* occ_image;
     int* occ_idx;
 
+
+  protected:
+  };
+
+  class VertexCamToMap : public BaseVertex<7, Sim3>
+  {
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    VertexCamToMap();
+
+    virtual bool read(std::istream& is);
+    virtual bool write(std::ostream& os) const;
+
+    virtual void setToOriginImpl() {
+      _estimate = Sim3();
+      _estimate_prev = Sim3();
+    }
+
+    virtual void oplusImpl(const double* update_)
+    {
+      Eigen::Map<Vector7d> update(const_cast<double*>(update_));
+
+      if (_fix_scale)
+        update[6] = 0;
+
+      setEstimatePrev(estimate());
+      Sim3 s(update);
+      setEstimate(s*estimate());
+//      Sim3 v3_est = estimate();
+//      cout<<v3_est.toMat()<<endl;
+    }
+    bool _fix_scale;
 
   protected:
   };
@@ -140,8 +172,11 @@ namespace g2o {
         const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
         const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
         const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[2]);
-        Matrix3d cTv_R = v1->cTv.block<3,3>(0,0);
-        Vector3d cTv_t = v1->cTv.block<3,1>(0,3);
+        const VertexCamToMap* v3 = static_cast<const VertexCamToMap*>(_vertices[3]);
+        Sim3 v3_est = v3->estimate();
+        Matrix4d cTv = v3_est.toMat();
+        Matrix3d cTv_R = cTv.block<3,3>(0,0);
+        Vector3d cTv_t = cTv.block<3,1>(0,3);
 
         Vector3d map_trans = cTv_R*v1->estimate().map_inv(v2->estimate())+cTv_t;
         Vector2d Ipos( v1->cam_map(map_trans) );
@@ -246,8 +281,12 @@ namespace g2o {
         const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
         const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
         const VertexSBAPointXYZ* v2 = static_cast<const VertexSBAPointXYZ*>(_vertices[2]);
-        Matrix3d cTv_R = v1->cTv.block<3,3>(0,0);
-        Vector3d cTv_t = v1->cTv.block<3,1>(0,3);
+        const VertexCamToMap* v3 = static_cast<const VertexCamToMap*>(_vertices[3]);
+        Sim3 v3_est = v3->estimate();
+        Matrix4d cTv = v3_est.toMat();
+//        cout<<cTv<<endl;
+        Matrix3d cTv_R = cTv.block<3,3>(0,0);
+        Vector3d cTv_t = cTv.block<3,1>(0,3);
 
         Vector2d Ipos( v0->cam_map( cTv_R*v0->estimate().map_inv(v2->estimate())+cTv_t) );
         int i_idx = (int)(((int)Ipos[1])*v0->_width+((int)Ipos[0]));
@@ -319,110 +358,6 @@ namespace g2o {
           _information<< v0->ImageInfo[i_idx];// + v1->ImageInfo[j_idx];//1000;// 
           _error = e1-obsz;
           _measurement = 1.0f;
-          return_idx = -1;
-          return 1;
-        }
-
-      }
-
-      virtual void linearizeOplus();
-
-  };
-
-  class EdgeImuPhotometric : public BaseBinaryEdge<1, Vector2d, VertexImu, VertexImu>
-  {
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-      EdgeImuPhotometric();
-
-      virtual bool read(std::istream& is);
-      virtual bool write(std::ostream& os) const;
-
-      void initOcclusionimg()
-      {
-      }
-      void clearMeasurement()
-      {
-      }
-
-      void computeError()
-      {
-      }
-    
-      int computeError2(int& return_idx)
-      {
-        const VertexImu* v0 = static_cast<const VertexImu*>(_vertices[0]);
-        const VertexImu* v1 = static_cast<const VertexImu*>(_vertices[1]);
-        Matrix3d cTv_R = v1->cTv.block<3,3>(0,0);
-        Vector3d cTv_t = v1->cTv.block<3,1>(0,3);
-
-        Vector2d Ipos = _measurement;
-        int i_idx = (int)(((int)Ipos[1])*v0->_width+((int)Ipos[0]));
-
-        Vector3d xyz_i = v0->cam_map_inv(Ipos,v0->Depth[i_idx]);
-        xyz_i = cTv_R.inverse()*(xyz_i-cTv_t);
-        Vector3d xyz_j = v1->estimate().map_inv(v0->estimate().map(xyz_i));
-        xyz_j = cTv_R*xyz_j+cTv_t;
-
-        Vector2d Jpos( v1->cam_map(xyz_j) );
-        int j_idx = (int)(((int)Jpos[1])*v1->_width+((int)Jpos[0]));
-
-        ImuState imu_i = v0->estimate();
-        if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;            
-        }
-        else if (Ipos[0]>=v0->_width || Ipos[0]<0 || Ipos[1]>=v0->_height || Ipos[1]<0 )
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;
-        }
-        else if (Jpos[0]>=v1->_width || Jpos[0]<0 || Jpos[1]>=v1->_height || Jpos[1]<0 )
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;
-        }
-        else if(!std::isfinite(v0->Image[i_idx]))
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;
-        }
-        else if(!std::isfinite(v1->Image[j_idx]))
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;
-        }
-        else if(!std::isfinite(v0->ImageGx[i_idx]) || !std::isfinite(v0->ImageGy[i_idx]))
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;
-        }
-        else if(!std::isfinite(v1->ImageGx[j_idx]) || !std::isfinite(v1->ImageGy[j_idx]))
-        {
-          _error<< 0.0f;
-          _information<<0.0f;
-          return_idx = -1;
-          return 0;
-        }
-        else
-        {
-          Matrix<double, 1, 1> e1(v0->Image[i_idx]);
-          Matrix<double, 1, 1> obsz(v1->Image[j_idx]);
-          _information<< v0->ImageInfo[i_idx];// + v1->ImageInfo[j_idx];//1000;// 
-          _error = e1-obsz;
           return_idx = -1;
           return 1;
         }

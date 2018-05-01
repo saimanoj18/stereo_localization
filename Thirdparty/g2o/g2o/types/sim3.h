@@ -141,12 +141,12 @@ namespace g2o
 
 
 
-//        Eigen::Matrix3d W = A*Omega + B*Omega2 + C*I;
-        Eigen::Matrix3d W = (sin(theta)/theta)*I+(1-(sin(theta)/theta))*aa+(1-cos(theta))/theta*Omega;
+        Eigen::Matrix3d W = A*Omega + B*Omega2 + C*I;
+//        Eigen::Matrix3d W = (sin(theta)/theta)*I+(1-(sin(theta)/theta))*aa+(1-cos(theta))/theta*Omega;
         t = W*upsilon;
       }
       
-      Matrix<double,4,4> toMat()
+      Matrix4d toMat()
       {
         Matrix<double,4,4> res_mat = Matrix<double,4,4>::Identity();
         res_mat.block<3,3>(0,0) = s*r.toRotationMatrix();

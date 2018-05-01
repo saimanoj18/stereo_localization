@@ -177,6 +177,8 @@ private:
     cv::Mat igx_image, igy_image;
     cv::Mat dgx_image, dgy_image; 
     cv::Mat disp;
+    cv::Mat ref_depth_image;
+    cv::Mat ref_dgx_image, ref_dgy_image;
 
     float* ref_container;
     float* src_container;
@@ -191,6 +193,10 @@ private:
     float* depth_gradientX;
     float* depth_gradientY;
     float* depth_info;
+    float* ref_depth;
+    float* ref_depth_gradientX;
+    float* ref_depth_gradientY;
+    float* ref_depth_info;
 
     //Imu
     g2o::ImuState prev_imu;
@@ -243,7 +249,7 @@ private:
     void write_poses(std::string fname, Matrix4d saved_pose); 
 
     //main algorithms
-    Matrix4d Optimization(const float* ref, const float* ref_image_var, const float* ref_i_gradientX, const float* ref_i_gradientY, const float* image, const float* image_var, const float* i_gradientX, const float* i_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY);  
+    Matrix4d Optimization(const float* ref, const float* ref_image_var, const float* ref_i_gradientX, const float* ref_i_gradientY, const float* image, const float* image_var, const float* i_gradientX, const float* i_gradientY, const float* r_depth, const float* r_depth_var, const float* r_d_gradientX, const float* r_d_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY);  
     Matrix4d Optimization_combined(const float* ref, const float* image, const float* image_var, float* i_gradientX, const float* i_gradientY, const float* idepth, const float* idepth_var, const float* d_gradientX, const float* d_gradientY, Matrix4d init_pose);  
     
     void debugImage(cv::Mat& depth_image,cv::Mat& dgx_image,cv::Mat& dgy_image,const float* depth_info);

@@ -253,10 +253,10 @@ namespace g2o {
 
         void check_print()
         {
-//            std::cout<<R_<<std::endl;
-//            std::cout<<t_<<std::endl;
+            std::cout<<R_<<std::endl;
+            std::cout<<t_<<std::endl;
 //            std::cout<<delta_bg_<<std::endl;
-            std::cout<<bias_a_<<std::endl;
+//            std::cout<<bias_a_<<std::endl;
 //            for (std::vector<Matrix3d>::iterator it = R_for_b.begin() ; it != R_for_b.end(); ++it){
 //                std::cout<<*it<<std::endl;
 //            }

@@ -6,22 +6,22 @@ namespace g2o {
   {
   }
 
+  VertexCamToMap::VertexCamToMap() : BaseVertex<7, Sim3>()
+  {
+  }
+
   EdgeImu::EdgeImu() : BaseBinaryEdge<9, ImuState, VertexImu, VertexImu>()
   {
   }
 
   EdgeImuProjectXYZD::EdgeImuProjectXYZD() : BaseMultiEdge<1, double>()
   {
-    resize(3);
+    resize(4);
   }
 
   EdgeImuProjectXYZ::EdgeImuProjectXYZ() : BaseMultiEdge<1, double>()
   {
-    resize(3);
-  }
-
-  EdgeImuPhotometric::EdgeImuPhotometric() : BaseBinaryEdge<1, Vector2d, VertexImu, VertexImu>()
-  {
+    resize(4);
   }
 
   bool VertexImu::read(std::istream& is)
@@ -29,6 +29,15 @@ namespace g2o {
     return true;
   }
   bool VertexImu::write(std::ostream& os) const
+  {
+    return true;
+  }
+
+  bool VertexCamToMap::read(std::istream& is)
+  {
+    return true;
+  }
+  bool VertexCamToMap::write(std::ostream& os) const
   {
     return true;
   }
@@ -63,15 +72,6 @@ namespace g2o {
     return true;
   }
 
-  bool EdgeImuPhotometric::write(std::ostream& os) const
-  {
-    return true;
-  }
-
-  bool EdgeImuPhotometric::read(std::istream& is)
-  {
-    return true;
-  }
 
   void EdgeImu::linearizeOplus()
   {
@@ -97,18 +97,20 @@ namespace g2o {
     _jacobianOplus[0].resize(1,15);
     _jacobianOplus[1].resize(1,15);
     _jacobianOplus[2].resize(1,3);
+    _jacobianOplus[3].resize(1,7);
 
     VertexImu* vj = static_cast<VertexImu*>(_vertices[1]);
     ImuState Imu_j = vj->estimate();
     VertexSBAPointXYZ* v_point = static_cast<VertexSBAPointXYZ*>(_vertices[2]);
     Vector3d xyz = v_point->estimate();
+    VertexCamToMap* v3 = static_cast<VertexCamToMap*>(_vertices[3]);
+    Sim3 v3_est = v3->estimate();
+    Matrix4d cTv = v3_est.toMat();
+    Matrix3d cTv_R = cTv.block<3,3>(0,0);
+    Vector3d cTv_t = cTv.block<3,1>(0,3);
 
-    Matrix3d cTv_R = vj->cTv.block<3,3>(0,0);
-    Vector3d cTv_t = vj->cTv.block<3,1>(0,3);
-
-    Vector3d xyz_trans = Imu_j.map_inv(xyz);
-    Vector3d xyz_trans2 = cTv_R*Imu_j.map_inv(xyz)+cTv_t;
-    Vector2d Ipos(vj->cam_map(xyz_trans2));
+    Vector3d xyz_trans = cTv_R*Imu_j.map_inv(xyz)+cTv_t;
+    Vector2d Ipos(vj->cam_map(xyz_trans));
     int idx = (int)(((int)Ipos[1])*vj->_width+((int)Ipos[0]));
 
 
@@ -117,6 +119,7 @@ namespace g2o {
         _jacobianOplus[0].setZero();
         _jacobianOplus[1].setZero();
         _jacobianOplus[2].setZero();
+        _jacobianOplus[3].setZero();
     }
     else
     {
@@ -128,13 +131,13 @@ namespace g2o {
         D_u(0,1) = vj->DepthGy[idx];
 
 
-        K_p(0,0) = vj->_focal_length[0]/xyz_trans2[2];
+        K_p(0,0) = vj->_focal_length[0]/xyz_trans[2];
         K_p(0,1) = 0;
-        K_p(0,2) = -vj->_focal_length[0]*xyz_trans2[0]/(xyz_trans2[2]*xyz_trans2[2]);
+        K_p(0,2) = -vj->_focal_length[0]*xyz_trans[0]/(xyz_trans[2]*xyz_trans[2]);
         K_p(0,3) = 0;//vj->_principle_point1[0];//
         K_p(1,0) = 0;
-        K_p(1,1) = vj->_focal_length[1]/xyz_trans2[2];
-        K_p(1,2) = -vj->_focal_length[1]*xyz_trans2[1]/(xyz_trans2[2]*xyz_trans2[2]);
+        K_p(1,1) = vj->_focal_length[1]/xyz_trans[2];
+        K_p(1,2) = -vj->_focal_length[1]*xyz_trans[1]/(xyz_trans[2]*xyz_trans[2]);
         K_p(1,3) = 0;//vj->_principle_point1[1];//
 
 
@@ -150,20 +153,14 @@ namespace g2o {
 
         Matrix<double,1,4> dm;
         dm<<0.0,0.0,1.0,0.0;
-        Matrix<double,1,6> delta = -(dm-D_u*K_p)*vj->cTv*Tp_note;
+        Matrix<double,1,6> delta = (dm-D_u*K_p)*Tp_note;
         _jacobianOplus[0].setZero();
-        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
-        _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
         _jacobianOplus[1].setZero();
-        _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
-        _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
         _jacobianOplus[2].setZero();
-
-//        cout<<_jacobianOplus[1]<<endl;
+        _jacobianOplus[3].setZero();
+        _jacobianOplus[3].block<1,6>(0,0) = delta;
          
     }
-
-
 
   }
 
@@ -174,6 +171,7 @@ namespace g2o {
     _jacobianOplus[0].resize(1,15);
     _jacobianOplus[1].resize(1,15);
     _jacobianOplus[2].resize(1,3);
+    _jacobianOplus[3].resize(1,7);
 
     VertexImu* vi = static_cast<VertexImu*>(_vertices[0]);
     ImuState Imu_i = vi->estimate();
@@ -182,8 +180,11 @@ namespace g2o {
     VertexSBAPointXYZ* v_point = static_cast<VertexSBAPointXYZ*>(_vertices[2]);
     Vector3d xyz = v_point->estimate();
 
-    Matrix3d cTv_R = vj->cTv.block<3,3>(0,0);
-    Vector3d cTv_t = vj->cTv.block<3,1>(0,3);
+    VertexCamToMap* v3 = static_cast<VertexCamToMap*>(_vertices[3]);
+    Sim3 v3_est = v3->estimate();
+    Matrix4d cTv = v3_est.toMat();
+    Matrix3d cTv_R = cTv.block<3,3>(0,0);
+    Vector3d cTv_t = cTv.block<3,1>(0,3);
 
     Vector2d Ipos(vi->cam_map(cTv_R*Imu_i.map_inv(xyz)+cTv_t));
     int i_idx = (int)(((int)Ipos[1])*vi->_width+((int)Ipos[0]));
@@ -197,6 +198,7 @@ namespace g2o {
         _jacobianOplus[0].setZero();
         _jacobianOplus[1].setZero();
         _jacobianOplus[2].setZero();
+        _jacobianOplus[3].setZero();
     }
     else
     {
@@ -255,119 +257,22 @@ namespace g2o {
         Tp_notej(3,4) = 0;
         Tp_notej(3,5) = 0;
 
-        Matrix<double,1,6> delta = -imagei_u*K_pi*vi->cTv*Tp_notei;
+        Matrix<double,1,6> delta = -imagei_u*K_pi*cTv*Tp_notei;
         _jacobianOplus[0].setZero();
 //        _jacobianOplus[0].block<1,3>(0,0) = delta.block<1,3>(0,0);        
 //        _jacobianOplus[0].block<1,3>(0,6) = delta.block<1,3>(0,3);
-        delta = imagej_u*K_pj*vj->cTv*Tp_notej;
+        delta = imagej_u*K_pj*cTv*Tp_notej;
         _jacobianOplus[1].setZero();
         _jacobianOplus[1].block<1,3>(0,0) = delta.block<1,3>(0,0);        
         _jacobianOplus[1].block<1,3>(0,6) = delta.block<1,3>(0,3);
         _jacobianOplus[2].setZero();
+        _jacobianOplus[3].setZero();
 
 //        cout<<_jacobianOplus[1]<<endl;
          
     }
 
   }
-
-  void EdgeImuPhotometric::linearizeOplus()
-  {
-
-    VertexImu* vi = static_cast<VertexImu*>(_vertices[0]);
-    ImuState Imu_i = vi->estimate();
-    VertexImu* vj = static_cast<VertexImu*>(_vertices[1]);
-    ImuState Imu_j = vj->estimate();
-
-    Matrix3d cTv_R = vj->cTv.block<3,3>(0,0);
-    Vector3d cTv_t = vj->cTv.block<3,1>(0,3);
-
-    Vector2d Ipos = _measurement;
-    int i_idx = (int)(((int)Ipos[1])*vi->_width+((int)Ipos[0]));
-
-    Vector3d xyz_i = vi->cam_map_inv(Ipos,vi->Depth[i_idx]);
-    xyz_i = cTv_R.inverse()*(xyz_i-cTv_t);
-    Vector3d xyz = vi->estimate().map(xyz_i);
-    Vector3d xyz_j = vj->estimate().map_inv(xyz);
-    Vector3d xyz_cam = cTv_R*xyz_j+cTv_t;
-
-    Vector2d Jpos( vj->cam_map(xyz_j) );
-    int j_idx = (int)(((int)Jpos[1])*vj->_width+((int)Jpos[0]));
-
-
-    if(!std::isfinite(Ipos[0])||!std::isfinite(Ipos[1])||!std::isfinite(Jpos[0])||!std::isfinite(Jpos[1]))
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else if (Ipos[0]>=vi->_width || Ipos[0]<0 || Ipos[1]>=vi->_height || Ipos[1]<0 )
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else if (Jpos[0]>=vj->_width || Jpos[0]<0 || Jpos[1]>=vj->_height || Jpos[1]<0 )
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else if(!std::isfinite(vi->Image[i_idx]))
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else if(!std::isfinite(vj->Image[j_idx]))
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else if(!std::isfinite(vi->ImageGx[i_idx]) || !std::isfinite(vi->ImageGy[i_idx]))
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else if(!std::isfinite(vj->ImageGx[j_idx]) || !std::isfinite(vj->ImageGy[j_idx]))
-    {
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-    }
-    else
-    {      
-        Matrix<double,1,2> imagej_u;
-        Matrix<double,2,4> K_pj;
-        Matrix<double,4,6> p_notej;
-
-        imagej_u(0,0) = vj->ImageGx[j_idx];
-        imagej_u(0,1) = vj->ImageGy[j_idx];
-      
-        K_pj(0,0) = vj->_focal_length[0]/xyz_cam[2];
-        K_pj(0,1) = 0;
-        K_pj(0,2) = -vj->_focal_length[0]*xyz_cam[0]/(xyz_cam[2]*xyz_cam[2]);
-        K_pj(0,3) = 0;
-        K_pj(1,0) = 0;
-        K_pj(1,1) = vj->_focal_length[1]/xyz_cam[2];
-        K_pj(1,2) = -vj->_focal_length[1]*xyz_cam[1]/(xyz_cam[2]*xyz_cam[2]);
-        K_pj(1,3) = 0;
-
-        Matrix<double,4,6> Tp_notej;
-        Tp_notej.block<3,3>(0,0) = -1*skew(xyz_j);
-        Tp_notej.block<3,3>(0,3) = Matrix3d::Identity();
-        Tp_notej(3,0) = 0;
-        Tp_notej(3,1) = 0;
-        Tp_notej(3,2) = 0;
-        Tp_notej(3,3) = 0;
-        Tp_notej(3,4) = 0;
-        Tp_notej(3,5) = 0;
-
-        Matrix<double,1,6> delta = imagej_u*K_pj*vj->cTv*Tp_notej;
-        _jacobianOplusXi.setZero();
-        _jacobianOplusXj.setZero();
-        _jacobianOplusXj.block<1,3>(0,0) = delta.block<1,3>(0,0);        
-        _jacobianOplusXj.block<1,3>(0,6) = delta.block<1,3>(0,3);
-         
-    }
-
-  }
-
 
 
 } // end namespace
